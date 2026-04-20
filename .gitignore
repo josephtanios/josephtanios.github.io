@@ -1,3 +1,2 @@
-# Ignore all files in CVs/ except career_explorer_v2.html
-CVs/*
-!CVs/career_explorer_v2.html
+# Career Explorer v2 is tracked, all other files ignored
+# (Currently no other patterns needed)
