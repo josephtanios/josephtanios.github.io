@@ -1,0 +1,3 @@
+# Ignore all files in CVs/summary/ except career_explorer_v2.html
+CVs/summary/*
+!CVs/summary/career_explorer_v2.html
