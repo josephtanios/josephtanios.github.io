@@ -1,0 +1,2530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Joseph Tanios — Career Explorer v2</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <style>
+    :root {
+      --navy:      #0d1b2a;
+      --navy-mid:  #12263a;
+      --navy-card: #162232;
+      --border:    #243447;
+      --gold:      #c9a84c;
+      --gold-lt:   #e8c97a;
+      --text:      #dde8f0;
+      --muted:     #7a92a8;
+      --era:       #c9a84c;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; height: 100%; overflow: hidden; }
+    body {
+      background: var(--navy); color: var(--text);
+      font-family: var(--ui-font-family, 'Segoe UI', system-ui, -apple-system, sans-serif);
+      font-size: var(--ui-font-size, 14px); line-height: 1.5;
+      height: 100%; display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    /* ── HEADER ── */
+    .hdr {
+      background: var(--navy-mid); border-bottom: 3px solid var(--gold);
+      padding: 10px 36px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+    }
+    .hdr h1   { font-size: 19px; font-weight: 700; color: var(--gold); letter-spacing: .4px; }
+    .hdr p    { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .hdr-btns { display: flex; gap: 10px; flex-shrink: 0; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border-radius: 6px; border: none;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: all .15s; white-space: nowrap;
+    }
+    .btn-gold  { background: var(--gold); color: var(--navy); }
+    .btn-gold:hover  { background: var(--gold-lt); }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* ── SLIDER ── */
+    .slider-wrap {
+      background: var(--navy-mid); border-bottom: 1px solid var(--border);
+      padding: 10px 36px 12px; flex-shrink: 0;
+    }
+    .slider-top { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; }
+    .slider-top-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+    .year-display   { font-size: 30px; font-weight: 700; color: var(--era); transition: color .3s; line-height: 1; }
+    .era-name       { font-size: 18px; color: var(--era); font-weight: 700; transition: color .3s; margin-top: 2px; }
+    .slider-row     { display: flex; align-items: center; gap: 14px; }
+    .tick           { font-size: 11px; color: var(--muted); white-space: nowrap; min-width: 28px; text-align: center; }
+    input[type=range] {
+      flex: 1; appearance: none; -webkit-appearance: none;
+      height: 6px; border-radius: 3px; background: var(--border); outline: none; cursor: pointer;
+      direction: rtl;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      appearance: none; -webkit-appearance: none;
+      width: 28px; height: 28px;
+      clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+      background: var(--gold); border: none; cursor: grab;
+      transition: background .3s, transform .15s;
+    }
+    input[type=range]:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.15); }
+    input[type=range]::-moz-range-thumb {
+      width: 28px; height: 28px; border-radius: 0;
+      clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+      background: var(--gold); border: none; cursor: grab;
+    }
+
+    /* ── TIMELINE BAR ── */
+    .tl-wrap { position: relative; margin: 0 0 6px 0; height: 72px; }
+    .tl-track {
+      position: absolute; top: 22px; left: 0; right: 0; height: 38px;
+      border-radius: 6px; overflow: visible; display: flex;
+    }
+    .tl-seg {
+      position: absolute; top: 0; height: 100%; border-radius: 4px;
+      transition: opacity .2s, filter .2s; cursor: pointer; overflow: visible;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .tl-seg.gap { opacity: .3; border-radius: 2px; }
+    .tl-seg:not(.gap):hover { filter: brightness(1.25); }
+    .tl-seg-lbl {
+      font-size: 13px; font-weight: 700; color: #fff;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px;
+      text-shadow: 0 1px 3px rgba(0,0,0,.8); pointer-events: none;
+    }
+    /* Narrow segments: label overflows visually without widening the DOM element */
+    .tl-seg-narrow {
+      z-index: 2;
+      overflow: visible;
+    }
+    .tl-seg-narrow .tl-seg-lbl {
+      position: absolute;
+      left: 3px;
+      font-size: 11px;
+      white-space: nowrap;
+      overflow: visible;
+    }
+    .tl-needle {
+      position: absolute; top: 6px; width: 3px; height: 46px; background: #fff;
+      border-radius: 2px; transform: translateX(-50%); pointer-events: none; z-index: 10;
+      box-shadow: 0 0 8px rgba(255,255,255,.6); transition: left .12s ease, background .3s;
+    }
+    .tl-needle::before {
+      content: ''; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
+      width: 11px; height: 11px; background: var(--era, #c9a84c);
+      border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 6px rgba(0,0,0,.5);
+    }
+    .tl-year-labels {
+      display: flex; justify-content: space-between; pointer-events: none;
+      padding: 2px 0 0 0;
+    }
+    .tl-year-labels span { font-size: 18px; color: var(--muted); }
+
+    /* ── EMPLOYER CARD ── */
+    #empCard {
+      flex: 1; margin: 12px 36px; overflow-y: auto; min-height: 0;
+      background: var(--navy-card);
+      border: 1px solid var(--border); border-left: 5px solid var(--era);
+      border-radius: 12px; padding: 14px 20px;
+      display: grid; grid-template-columns: var(--card-left-w, 220px) 1fr;
+      gap: 20px; transition: border-left-color .3s;
+    }
+    .emp-col-divider {
+      position: absolute; top: 0; bottom: 0; width: 6px;
+      cursor: col-resize; background: transparent; z-index: 5;
+      transform: translateX(-3px);
+    }
+    .emp-col-divider:hover { background: var(--gold); opacity: 0.3; }
+    .emp-card {
+      background: var(--navy-card);
+      border: 1px solid var(--border); border-left: 5px solid var(--era);
+      border-radius: 12px; padding: 14px 20px;
+      display: grid; grid-template-columns: 220px 1fr;
+      gap: 20px; transition: border-left-color .3s;
+    }
+    .emp-name   { font-size: 26px; font-weight: 700; color: var(--era); transition: color .3s; }
+    .emp-role   { font-size: 15px; color: #ffffff; margin-top: 3px; }
+    .emp-meta   { font-size: 11px; color: #ffffff; margin-top: 5px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .gap-badge  {
+      display: inline-block; margin-top: 8px; background: #334455;
+      color: var(--muted); border-radius: 4px; padding: 2px 10px; font-size: 11px;
+    }
+    .sec-lbl    { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--era); margin-bottom: 8px; font-weight: 700; }
+    .emp-hl     { list-style: none; margin: 0; height: 66px; overflow-y: auto; padding-right: 4px; scrollbar-width: thin; scrollbar-color: var(--gold) transparent; }
+    .emp-hl::-webkit-scrollbar { width: 4px; }
+    .emp-hl::-webkit-scrollbar-track { background: transparent; }
+    .emp-hl::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 2px; }
+    .emp-hl li  { font-size: 12px; color: #ffffff; padding: 3px 0; padding-left: 14px; position: relative; }
+    .emp-hl li::before { content: '▸'; position: absolute; left: 0; color: var(--era); transition: color .3s; }
+    body.exporting .emp-hl { height: auto !important; overflow: visible !important; }
+    body.exporting .tags   { height: auto !important; overflow: visible !important; }
+    .emp-boxes       { display: flex; flex-direction: column; gap: 10px; }
+    .emp-boxes-row    { display: flex; gap: 10px; }
+    .emp-boxes-row > .emp-box { flex: 1; min-width: 0; }
+    .emp-box    { background: rgba(255,255,255,.03); border-radius: 6px; padding: 10px 12px; border: 1px solid #1e2e3e; }
+    .emp-hl-achiev li::before { color: #c9a84c; }
+    .tags       { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; height: 28px; overflow-y: auto; padding-right: 4px; align-content: flex-start; scrollbar-width: thin; scrollbar-color: var(--gold) transparent; }
+    .tags::-webkit-scrollbar { width: 4px; }
+    .tags::-webkit-scrollbar-track { background: transparent; }
+    .tags::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 2px; }
+    .tag        { font-size: 11px; padding: 3px 10px; border-radius: 12px; border: 1px solid transparent; transition: border-color .3s, color .3s; color: #ffffff; }
+    .emp-card { position: relative; }
+    #empCard  { position: relative; }
+
+    /* ── SKILL BUBBLES ── */
+    /* ── top panels row ── */
+    #topRow {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      gap: 6px;
+      padding: 12px 36px 16px 36px;
+      flex-shrink: 0;
+    }
+    /* ── Offering panel ── */
+    #offeringWrap {
+      position: relative;
+      flex-shrink: 0;
+      width: var(--offering-w, 520px);
+      min-width: 220px;
+      background: rgba(13,27,42,0.95);
+      border: 1px solid var(--gold);
+      border-radius: 8px;
+      box-shadow: 0 0 0 1px var(--border), 0 4px 24px rgba(0,0,0,0.45);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #offeringBody {
+      flex: 1;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 12.5px;
+      line-height: 1.6;
+      outline: none;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .offering-list {
+      flex: 1;
+      margin: 0 0 6px 0;
+      padding: 0;
+      list-style: none;
+      overflow-y: auto;
+    }
+    .offering-list li {
+      position: relative;
+      padding: 6px 24px 6px 16px;
+      margin: 0 0 4px 0;
+      border-left: 2px solid var(--gold);
+      background: rgba(201,168,76,0.08);
+      border-radius: 4px;
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 28px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .offering-list li:hover {
+      background: rgba(201,168,76,0.12);
+    }
+    .offering-list li:before {
+      content: '◆';
+      position: absolute;
+      left: 4px;
+      color: var(--gold);
+      font-size: 8px;
+      opacity: 0.7;
+    }
+    body[data-mode="edit"] .offering-list li:hover .del-bullet {
+      display: inline-block;
+    }
+    #offeringBody .add-bullet {
+      flex-shrink: 0;
+      margin-top: 0;
+    }
+    #skillBubbleWrap {
+      flex-shrink: 0;
+      width: var(--bubble-w, 50%); height: 160px;
+      background: rgba(13,27,42,0.95);
+      border: 1px solid var(--gold);
+      border-radius: 8px;
+      box-shadow: 0 0 0 1px var(--border), 0 4px 24px rgba(0,0,0,0.45);
+      overflow: hidden;
+      display: flex; flex-direction: column;
+      min-height: 38px; max-height: 60vh;
+      margin: 0 0 0 auto;
+      min-width: 300px;
+    }
+    #skillBubbleWrap.collapsed { height: 38px; }
+    .bubble-resize-handle {
+      position: absolute; top: 0; left: 0; right: 0; height: 6px;
+      cursor: ns-resize; z-index: 10;
+      background: transparent;
+    }
+    .bubble-resize-handle:hover { background: var(--gold); opacity: 0.35; }
+    .bubble-resize-handle-ew {
+      position: absolute; top: 0; bottom: 0; width: 6px;
+      cursor: ew-resize; z-index: 10; background: transparent;
+    }
+    .bubble-resize-handle-ew.left  { left: 0; }
+    .bubble-resize-handle-ew.right { right: 0; }
+    .bubble-resize-handle-ew:hover { background: var(--gold); opacity: 0.35; }
+    .bubble-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 14px;
+      font-size: 11px; font-weight: 700; color: var(--gold);
+      text-transform: uppercase; letter-spacing: .8px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0; user-select: none;
+    }
+    .bubble-toggle { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:0; }
+    .page-wrap  { padding: 0 36px 36px; }
+    .charts-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto; gap: 18px;
+    }
+    .card {
+      background: var(--navy-card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px 20px;
+    }
+    .card-title {
+      font-size: 11px; font-weight: 700; color: var(--gold);
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+    }
+    .chart-box { position: relative; height: 270px; overflow: hidden; }
+
+    /* ── WORD CLOUD ── */
+    .word-cloud {
+      display: flex; flex-wrap: wrap; align-items: center;
+      justify-content: center; gap: 4px 10px; padding: 10px 8px;
+      height: 100%; overflow: hidden; align-content: center;
+    }
+    .wc-word {
+      font-weight: 800; cursor: default; white-space: nowrap;
+      line-height: 1.15; display: inline-block;
+      transition: font-size .45s cubic-bezier(0.34,1.4,0.64,1),
+                  color .4s ease, opacity .4s ease;
+    }
+
+    /* ── OVERLAY ── */
+    #overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(13,27,42,.82); backdrop-filter: blur(4px);
+      z-index: 9999; align-items: center; justify-content: center;
+    }
+    .ov-box { background: var(--navy-mid); border: 1px solid var(--gold); border-radius: 12px; padding: 28px 40px; text-align: center; }
+    .spinner { width: 38px; height: 38px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── FOOTER ── */
+    .footer { text-align: center; padding: 18px 36px; color: var(--muted); font-size: 11px; border-top: 1px solid var(--border); }
+
+    /* ── EDIT PANEL ── */
+    .edit-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55);
+      z-index: 900; backdrop-filter: blur(2px);
+    }
+    .edit-backdrop.open { display: block; }
+    .edit-panel {
+      position: fixed; top: 0; right: 0; height: 100vh; width: 380px;
+      background: var(--navy-mid); border-left: 1px solid var(--border);
+      z-index: 1000; display: flex; flex-direction: column;
+      transform: translateX(100%); transition: transform .3s cubic-bezier(.4,0,.2,1);
+    }
+    .edit-panel.open { transform: translateX(0); }
+    .ep-hdr {
+      padding: 18px 20px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: flex-start;
+      flex-shrink: 0; background: var(--navy-mid);
+    }
+    .ep-hdr-title { font-size: 15px; font-weight: 700; color: var(--gold); }
+    .ep-hdr-sub   { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .ep-close { background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+    .ep-close:hover { color: var(--text); background: var(--border); }
+    .ep-body  { flex: 1; overflow-y: auto; padding: 16px 20px; }
+    .ep-section { margin-bottom: 20px; }
+    .ep-section-title { font-size: 11px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px; }
+    .ep-field { margin-bottom: 10px; }
+    .ep-field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .ep-field input, .ep-field textarea {
+      width: 100%; background: var(--navy); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 10px; color: var(--text);
+      font-size: 12px; font-family: inherit; resize: vertical; outline: none;
+      transition: border-color .15s;
+    }
+    .ep-field input:focus, .ep-field textarea:focus { border-color: var(--gold); }
+    .ep-dyn-row { display: flex; gap: 6px; align-items: flex-start; margin-bottom: 8px; }
+    .ep-dyn-row textarea, .ep-dyn-row input { flex: 1; background: var(--navy); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; color: var(--text); font-size: 12px; font-family: inherit; resize: vertical; outline: none; transition: border-color .15s; }
+    .ep-dyn-row textarea:focus, .ep-dyn-row input:focus { border-color: var(--gold); }
+    .ep-del-btn { background: none; border: 1px solid var(--border); color: var(--muted); cursor: pointer; border-radius: 4px; padding: 2px 8px; font-size: 15px; line-height: 1.4; flex-shrink: 0; margin-top: 2px; transition: color .15s, border-color .15s; }
+    .ep-del-btn:hover { color: #e05c5c; border-color: #e05c5c; }
+    .ep-add-btn { display: block; width: 100%; background: none; border: 1px dashed var(--border); color: var(--gold); cursor: pointer; border-radius: 6px; padding: 5px 12px; font-size: 12px; margin-top: 4px; transition: background .15s; }
+    .ep-add-btn:hover { background: rgba(201,168,76,.08); }
+    .ep-slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .ep-slider-lbl { font-size: 11px; color: var(--muted); min-width: 90px; }
+    .ep-range { flex: 1; appearance: none; height: 4px; border-radius: 2px; background: var(--border); }
+    .ep-range::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--gold); border: 2px solid var(--navy); cursor: pointer; }
+    .ep-range::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--gold); border: 2px solid var(--navy); cursor: pointer; }
+    .ep-slider-val { font-size: 11px; color: var(--gold); min-width: 24px; text-align: right; }
+    .ep-footer { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; position: sticky; bottom: 0; background: var(--navy-mid); z-index: 2; }
+    .btn-danger { background: transparent; color: #e07a5f; border: 1px solid #e07a5f44; }
+    .btn-danger:hover { background: #e07a5f22; }
+
+    /* ── PASSWORD MODAL ── */
+    .pw-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 2000; backdrop-filter: blur(4px); align-items: center; justify-content: center; }
+    .pw-backdrop.open { display: flex; }
+    .pw-box { background: var(--navy-mid); border: 1px solid var(--border); border-top: 3px solid var(--gold); border-radius: 14px; padding: 32px 36px 28px; width: 340px; text-align: center; animation: pw-in .2s ease; }
+    @keyframes pw-in { from { transform: scale(.92) translateY(-12px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+    .pw-box.shake { animation: pw-shake .35s ease; }
+    @keyframes pw-shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(6px)} }
+    .pw-icon  { font-size: 28px; margin-bottom: 10px; }
+    .pw-title { font-size: 17px; font-weight: 700; color: var(--gold); margin-bottom: 6px; }
+    .pw-sub   { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+    .pw-input { width: 100%; background: var(--navy); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 15px; letter-spacing: 2px; text-align: center; outline: none; transition: border-color .15s; font-family: inherit; }
+    .pw-input:focus { border-color: var(--gold); }
+    .pw-confirm { width: 100%; margin-top: 10px; background: var(--navy); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 15px; letter-spacing: 2px; text-align: center; outline: none; transition: border-color .15s; font-family: inherit; }
+    .pw-confirm:focus { border-color: var(--gold); }
+    .pw-err  { font-size: 11px; color: #e07a5f; margin-top: 8px; min-height: 16px; }
+    .pw-btns { display: flex; gap: 10px; margin-top: 18px; }
+    .pw-btns .btn { flex: 1; justify-content: center; }
+    .pw-hint { font-size: 10px; color: var(--border); margin-top: 12px; }
+
+    /* Inline editing hover/active — only active in edit mode */
+    body[data-mode="view"] [data-editable]:hover { outline: none; cursor: default; }
+    body[data-mode="view"] [data-editable]:hover::after { display: none; }
+    body[data-mode="view"] .add-bullet,
+    body[data-mode="view"] .emp-edit-btn { display: none !important; }
+    [data-editable] { position: relative; }
+    body[data-mode="edit"] [data-editable]:hover  { outline: 1px dashed var(--era); outline-offset: 2px; cursor: text; border-radius: 3px; }
+    body[data-mode="edit"] [data-editable]:hover::after {
+      content: '\270E  edit';
+      position: absolute; top: -20px; left: 0;
+      background: var(--navy-mid); border: 1px solid var(--border);
+      color: var(--gold); font-size: 9px; font-weight: 700;
+      padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+      pointer-events: none; line-height: 1.4; letter-spacing: .4px;
+    }
+    body[data-mode="edit"] [data-editable][contenteditable="true"] {
+      outline: 2px solid var(--gold); outline-offset: 3px;
+      border-radius: 3px; background: rgba(201,168,76,.08); cursor: text;
+    }
+    /* Mode badge */
+    .mode-badge {
+      font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;
+      letter-spacing: .5px; border: 1px solid;
+    }
+    .mode-badge.view { color: var(--muted); border-color: var(--border); }
+    .mode-badge.edit { color: #52b788; border-color: #52b788; background: rgba(82,183,136,.1); animation: pulse-edit 2s infinite; }
+    @keyframes pulse-edit { 0%,100%{box-shadow:0 0 0 0 rgba(82,183,136,.4)} 50%{box-shadow:0 0 0 5px rgba(82,183,136,.0)} }
+    /* Sortable ghost */
+    .sort-ghost { opacity: .35; background: rgba(201,168,76,.12) !important; border-radius: 4px; }
+    /* Add bullet button */
+    .add-bullet {
+      margin-top: 6px; background: none; border: 1px dashed var(--border);
+      color: var(--muted); border-radius: 5px; padding: 3px 10px;
+      font-size: 11px; cursor: pointer; width: 100%; text-align: left;
+      transition: border-color .15s, color .15s;
+    }
+    .add-bullet:hover { border-color: var(--gold); color: var(--gold); }
+    /* Delete tag button */
+    .del-tag {
+      display: none; background: none; border: none;
+      color: #e07a5f; font-size: 10px; cursor: pointer;
+      padding: 0 0 0 4px; line-height: 1; opacity: .7; vertical-align: middle;
+    }
+    .del-tag:hover { opacity: 1; }
+    body[data-mode="edit"] .tag:hover .del-tag { display: inline; }
+    /* Delete bullet button */
+    .del-bullet {
+      display: none; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: #e07a5f; font-size: 11px;
+      cursor: pointer; padding: 0 2px; line-height: 1; opacity: .7;
+    }
+    .del-bullet:hover { opacity: 1; }
+    body[data-mode="edit"] .emp-hl li:hover .del-bullet { display: inline-block; }
+    body[data-mode="edit"] .tags[data-field] .tag { cursor: grab; }
+    body[data-mode="edit"] .tags[data-field] .tag:active { cursor: grabbing; }
+
+    /* ── SPELL REVIEW PANEL ── */
+    .sr-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7);
+      z-index: 3000; backdrop-filter: blur(4px); align-items: flex-start; justify-content: center;
+      padding: 32px 16px;
+    }
+    .sr-backdrop.open { display: flex; }
+    .sr-panel {
+      background: var(--navy-mid); border: 1px solid var(--gold);
+      border-radius: 14px; width: 100%; max-width: 760px; max-height: 90vh;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .sr-hdr {
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+    }
+    .sr-hdr-title { font-size: 15px; font-weight: 700; color: var(--gold); }
+    .sr-hdr-sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .sr-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+    .sr-era { margin-bottom: 24px; }
+    .sr-era-name {
+      font-size: 13px; font-weight: 700; color: var(--gold);
+      text-transform: uppercase; letter-spacing: .6px;
+      margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+    }
+    .sr-field-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin: 8px 0 4px; }
+    .sr-item {
+      background: var(--navy); border: 1px solid var(--border); border-radius: 6px;
+      padding: 7px 10px; margin-bottom: 5px; font-size: 13px; color: var(--text);
+      outline: none; min-height: 28px; line-height: 1.5;
+    }
+    .sr-item:focus { border-color: var(--gold); }
+    .sr-footer { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; flex-shrink: 0; }
+
+    /* ── PRINT ── */
+    @media print {
+      .no-print { display: none !important; }
+      body, .hdr, .slider-wrap, .card, .emp-card { background: #fff; color: #111; }
+      .hdr { border-bottom: 2px solid #c9a84c; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="overlay"><div class="ov-box"><div class="spinner"></div><p>Generating PDF…</p></div></div>
+
+<!-- SPELL REVIEW PANEL -->
+<div class="sr-backdrop no-print" id="srBackdrop">
+  <div class="sr-panel">
+    <div class="sr-hdr">
+      <div>
+        <div class="sr-hdr-title">&#128270;&nbsp; Spell Review — all content</div>
+        <div class="sr-hdr-sub">Right-click any red-underlined word to correct it &nbsp;&middot;&nbsp; Tab to move between fields</div>
+      </div>
+      <button class="ep-close" onclick="closeSpellReview()">&#10005;</button>
+    </div>
+    <div class="sr-body" id="srBody"></div>
+    <div class="sr-footer">
+      <button class="btn btn-ghost" onclick="closeSpellReview()">Cancel</button>
+      <button class="btn btn-gold"  onclick="saveSpellReview()">&#10003;&nbsp; Save All Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- PASSWORD MODAL -->
+<div class="pw-backdrop no-print" id="pwBackdrop">
+  <div class="pw-box" id="pwBox">
+    <div class="pw-icon">&#128274;</div>
+    <div class="pw-title" id="pwTitle">Editor Access</div>
+    <div class="pw-sub"  id="pwSub">Enter your password to edit career data</div>
+    <input class="pw-input"   type="password" id="pwInput"   placeholder="Password"
+           onkeydown="if(event.key==='Enter')pwNext()">
+    <input class="pw-confirm" type="password" id="pwConfirm" placeholder="Confirm password"
+           style="display:none" onkeydown="if(event.key==='Enter')pwSubmit()">
+    <div class="pw-err" id="pwErr"></div>
+    <div class="pw-btns">
+      <button class="btn btn-ghost" onclick="pwCancel()">Cancel</button>
+      <button class="btn btn-gold"  id="pwBtn" onclick="pwSubmit()">Unlock</button>
+    </div>
+    <div class="pw-hint" id="pwHint">&#128274; Protected by SHA-256</div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div>
+    <h1>
+      JOSEPH TANIOS &mdash;
+      <span id="hdrMainTitle" data-editable ondblclick="inlineEdit(this)" data-scope="header" data-field="mainTitle">Career Explorer v2</span>
+      &nbsp;
+      <span id="hdrSubTitle" data-editable ondblclick="inlineEdit(this)" data-scope="header" data-field="subTitle" style="display:none;font-size:12px;color:var(--muted);font-weight:400">Live Visualisations</span>
+    </h1>
+  </div>
+  <div class="hdr-btns no-print">
+    <span class="mode-badge view" id="modeBadge">&#128274;&nbsp; View Mode</span>
+    <button class="btn btn-ghost" id="modeToggleBtn" onclick="toggleEditMode()">&#9998;&nbsp; Enter Edit Mode</button>
+    <button class="btn btn-ghost no-print" id="spellReviewBtn" onclick="openSpellReview()" style="display:none">&#128270;&nbsp; Review Spelling</button>
+    <button class="btn btn-ghost no-print" id="resetSourceBtn" onclick="resetToSource()" style="display:none;border-color:#e07a5f;color:#e07a5f">&#8635;&nbsp; Reset to Source</button>
+    <a href="career_explorer.html" class="btn btn-ghost" style="display:none">&#8592;&nbsp; Classic View</a>
+    <button class="btn btn-ghost" onclick="window.print()" style="display:none">&#128424;&nbsp; Print</button>
+    <button class="btn btn-gold"  onclick="exportPDF()">&#11015;&nbsp; Export PDF</button>
+  </div>
+</header>
+
+<!-- TOP ROW: Offering + Competences & Tools -->
+<div id="topRow" class="no-print">
+
+  <!-- OFFERING PANEL -->
+  <div id="offeringWrap">
+    <div class="bubble-resize-handle" id="offeringResizeTop"></div>
+    <div class="bubble-resize-handle-ew right" id="offeringResizeR"></div>
+    <div class="bubble-hdr">&#9670;&nbsp; Offering</div>
+    <div id="offeringBody">
+      <ul class="offering-list" id="offeringList"></ul>
+      <button class="add-bullet no-print" onclick="addOfferingItem()">&#43; add line</button>
+    </div>
+  </div>
+
+  <!-- SKILL BUBBLE PANEL -->
+  <div id="skillBubbleWrap" style="position:relative;">
+    <div class="bubble-resize-handle" id="bubbleResizeHandle"></div>
+    <div class="bubble-resize-handle-ew left"  id="bubbleResizeL"></div>
+    <div class="bubble-resize-handle-ew right" id="bubbleResizeR"></div>
+    <div class="bubble-hdr">&#9671;&nbsp; Competences &amp; Tools</div>
+  </div>
+
+</div>
+
+<!-- SLIDER -->
+<div class="slider-wrap no-print">
+  <div style="position:relative">
+    <span id="yearDisplay" style="position:absolute;right:0;top:-18px;font-size:11px;color:var(--muted);"></span>
+    <div class="tl-wrap" id="tlWrap">
+    <div class="tl-track"      id="tlTrack"></div>
+    <div class="tl-needle"     id="tlNeedle"></div>
+  </div>
+  </div>
+  <div class="slider-row" style="margin-top:4px">
+    <input type="range" id="yearSlider" min="2004.5" max="2026.25" step="0.25" value="2026.25">
+  </div>
+  <div class="tl-year-labels" id="tlYearLabels"></div>
+</div>
+
+<!-- EMPLOYER CARD -->
+<div class="emp-card" id="empCard"></div>
+
+<!-- EDIT BACKDROP + PANEL -->
+<div class="edit-backdrop no-print" id="editBackdrop" onclick="closeEdit()"></div>
+<aside class="edit-panel no-print" id="editPanel">
+  <div class="ep-hdr">
+    <div>
+      <div class="ep-hdr-title" id="epTitle">Edit Company</div>
+      <div class="ep-hdr-sub">Changes saved to this browser</div>
+    </div>
+    <button class="ep-close" onclick="closeEdit()">&#10005;</button>
+  </div>
+  <div class="ep-body">
+    <div class="ep-section">
+      <div class="ep-section-title">&#128205;&nbsp; Basic Information</div>
+      <div class="ep-field"><label>Company Name</label><input type="text" id="ef-name"></div>
+      <div class="ep-field"><label>Role / Title</label><input type="text" id="ef-role"></div>
+      <div class="ep-field"><label>Period</label><input type="text" id="ef-period"></div>
+      <div class="ep-field"><label>Location</label><input type="text" id="ef-location"></div>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">&#128736;&nbsp; Contributions</div>
+      <div id="ef-contributions-list"></div>
+      <button class="ep-add-btn" onclick="epAddItem('contributions')">+ Add Contribution</button>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">&#127942;&nbsp; Achievements</div>
+      <div id="ef-achievements-list"></div>
+      <button class="ep-add-btn" onclick="epAddItem('achievements')">+ Add Achievement</button>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">&#128161;&nbsp; Acquired Skills</div>
+      <div id="ef-skills-list"></div>
+      <button class="ep-add-btn" onclick="epAddItem('skills')">+ Add Skill</button>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">&#128295;&nbsp; Technologies &amp; Tools</div>
+      <div class="ep-field">
+        <label>Tools (comma-separated)</label>
+        <textarea id="ef-tools" rows="2"></textarea>
+      </div>
+    </div>
+  </div>
+  <div class="ep-footer">
+    <button class="btn btn-danger" onclick="resetEra()">&#8635;&nbsp; Reset</button>
+    <button class="btn btn-ghost"  onclick="closeEdit()">Cancel</button>
+    <button class="btn btn-gold"   onclick="saveEra()">&#10003;&nbsp; Save</button>
+  </div>
+</aside>
+
+<!-- VISUALISATIONS -->
+<div class="page-wrap" id="dashboard">
+  <div class="charts-grid" style="display:none">
+    <div style="display:none">
+      <div class="word-cloud" id="wordCloud"></div>
+      <canvas id="bubbleCanvas"></canvas>
+      <canvas id="gaugeCanvas"></canvas>
+      <canvas id="orbCanvas"></canvas>
+    </div>
+
+  </div>
+</div>
+
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   DATA
+═══════════════════════════════════════════════════════════════════════ */
+const _now = new Date();
+const TL_MIN = 2004.5;
+const TL_MAX = +(_now.getFullYear() + _now.getMonth() / 12).toFixed(3);
+const TL_SPAN = TL_MAX - TL_MIN;
+
+const eras = [
+  {
+    id: 'arolys', name: 'Arolys', role: 'Junior Consultant',
+    period: 'Jun 2004 – Aug 2006', location: 'Paris',
+    startY: 2004.5, endY: 2006.7, color: '#778899', isGap: false,
+    contributions: [
+      'Step-by-step approach for product optimisation',
+      'Facilitated cross-functional workshops to define measurable requirements and assess solution performance',
+    ],
+    achievements: ['Identified up to 30% cost optimisation potential across business processes'],
+    acquiredSkills: ['Requirements Elicitation', 'Workshop Facilitation', 'Business Process Analysis', 'Stakeholder Management'],
+    tools: ['MS Office', 'Process Mapping', 'Cost-Benefit Analysis'],
+    radar:        [20, 42, 22, 15, 10, 20],
+    domain:       [50, 10, 0, 0, 40],
+    instruments:  [0,  0,  0, 0,  0, 20],
+    skillWeights: [0.20, 0.42, 0.22, 0.15, 0.10, 0.20],
+  },
+  {
+    id: 'gap1', name: 'Career Transition',
+    role: 'Between Roles — repositioning toward financial markets',
+    period: 'Sep 2006 – Dec 2007', location: '—',
+    startY: 2006.7, endY: 2008.0, color: '#445566', isGap: true,
+    contributions: ['Relocation and career repositioning toward the financial services sector'],
+    achievements: [], acquiredSkills: [], tools: [],
+    radar:        [22, 40, 20, 14, 10, 18],
+    domain:       [40, 10, 0, 0, 50],
+    instruments:  [5, 5, 5, 5, 10, 0],
+    skillWeights: [0, 0, 0, 0, 0, 0],
+  },
+  {
+    id: 'altsoft', name: 'AlternativeSoft',
+    role: 'Account Manager — Hedge Funds & Asset Management',
+    period: 'Jan 2008 – Aug 2009', location: 'London',
+    startY: 2008.0, endY: 2009.6, color: '#7c6fcd', isGap: false,
+    contributions: [
+      'Making hedge fund systems transparent for portfolio managers',
+      'Supported clients in software installation and guided them through the different functionalities',
+      'Enhanced user interface and contributed to defining new features (i.e., peer-group analysis)',
+    ],
+    achievements: ['Increased product usability and transparency — supported 40 clients (portfolio managers and analysts)'],
+    acquiredSkills: ['Hedge Fund Analytics', 'Portfolio Construction & Optimisation', 'Due Diligence', 'Client Onboarding & Training'],
+    tools: ['AlternativeSoft Platform', 'Bloomberg', 'Excel', 'Peer-group Analysis'],
+    radar:        [56, 50, 52, 30, 20, 20],
+    domain:       [28, 38, 8, 0, 26],
+    instruments:  [30, 22, 12, 28, 82, 0],
+    skillWeights: [0.56, 0.50, 0.52, 0.30, 0.20, 0.20],
+  },
+  {
+    id: 'horizon', name: 'Horizon Software',
+    role: 'Account Manager — OMS / EMS',
+    period: 'Oct 2009 – Apr 2014', location: 'Paris',
+    startY: 2009.8, endY: 2014.3, color: '#e07a5f', isGap: false,
+    contributions: [
+      'Refined user acceptance criteria with client representative and development team',
+      'Defined functional specifications for options strategies creation on EUREX',
+      'Enhanced and tested hedging module for options market making',
+    ],
+    achievements: ['On-time bespoke deliveries for the two biggest investment banks in Paris and London'],
+    acquiredSkills: ['Derivatives & Risk Management', 'Exotic Options', 'Delta Hedging', 'UAT Management', 'Functional Specification'],
+    tools: ['FIX Protocol', 'EUREX', 'Horizon OMS/EMS', 'Bloomberg'],
+    radar:        [66, 56, 42, 57, 32, 30],
+    domain:       [34, 20, 36, 0, 10],
+    instruments:  [66, 55, 66, 46, 30, 0],
+    skillWeights: [0.66, 0.56, 0.42, 0.57, 0.32, 0.30],
+  },
+  {
+    id: 'socgen', name: 'Société Générale',
+    role: 'Business Analyst — OMS & Connectivity',
+    period: 'May 2014 – Nov 2015', location: 'Zurich',
+    startY: 2014.4, endY: 2015.9, color: '#52b788', isGap: false,
+    contributions: [
+      'Specified screen designs for FX & money market with UK & Swiss business representatives',
+      'Defined interface specification between Triple A and FIX market gateway',
+    ],
+    achievements: ['Delivered integrated FX flow from order entry, execution through settlement'],
+    acquiredSkills: ['FX & Money Market', 'MiFID Compliance', 'Interface Specification', 'Screen Design & UX'],
+    tools: ['Triple A PMS', 'FIX Protocol', 'SWIFT', 'Oracle SQL'],
+    radar:        [76, 76, 62, 70, 56, 60],
+    domain:       [44, 26, 22, 5, 3],
+    instruments:  [70, 56, 40, 55, 20, 0],
+    skillWeights: [0.76, 0.76, 0.62, 0.70, 0.56, 0.60],
+  },
+  {
+    id: 'csubs', name: 'Credit Suisse / UBS',
+    role: 'Senior Business Analyst',
+    period: 'Dec 2015 – Oct 2024', location: 'Zürich',
+    startY: 2015.9, endY: 2024.8, color: '#457b9d', isGap: false,
+    contributions: [
+      'Led primary market funds stream end-to-end automation from Pre-Trade to Post-Trade',
+      'Animated workshops with execution and operations to clarify and document new requests',
+      'Designed & documented current and expected business flows',
+      'Validated and evaluated proposed solutions with IT teams and Business',
+      'Supported testing teams in writing use cases',
+      'Specified new SWIFT connectivity between the bank and custodians / fund administrators',
+      'Created and tested an interface between Zurich Execution and Italy T24 Backoffice platform',
+    ],
+    achievements: [
+      '99% STP rate for mutual funds flow in compliance with external audit requests and regulations',
+      'Hedge Funds and private equity migration from dealing sheet to state-of-the-art integrated system',
+      'High business satisfaction thanks to a sustainable & integrated solution',
+    ],
+    acquiredSkills: ['Hedge Funds & Private Equity', 'End-to-end STP Automation', 'Functional & Non-functional Specification', 'Regulatory Compliance', 'Agile & Scrum'],
+    tools: ['SWIFT MT/MX', 'FIX Protocol', 'REST API', 'Oracle SQL', 'Informatica PowerCenter', 'T24', 'Jira', 'Confluence'],
+    radar:        [92, 92, 80, 88, 88, 82],
+    domain:       [40, 26, 22, 7, 5],
+    instruments:  [86, 78, 65, 65, 46, 52],
+    skillWeights: [0.92, 0.92, 0.80, 0.88, 0.88, 0.82],
+  },
+  {
+    id: 'jb', name: 'Julius Bär',
+    role: 'Requirements Engineer (Contractor) — BAS Carveout MVP',
+    period: 'Oct 2024 – Mar 2025', location: 'Zürich',
+    startY: 2024.8, endY: 2025.25, color: '#2a9d8f', isGap: false,
+    contributions: [
+      'Reviewed existing validation rules in BAS (a mainframe satellite for OMS) for data governance checks',
+      'Extracted and analyzed BAS orders by user groups, asset classes and entry channels',
+      'Performed gap analysis between FIJB and FMA for instrument attributes',
+    ],
+    achievements: [
+      'Implemented a new order-entry screen in OTMS',
+      'Defined and documented MVP scope, features and user stories for listed products OMS flow',
+    ],
+    acquiredSkills: ['Order Management Architecture', 'MVP Scoping & User Stories', 'Data Governance', 'Gap Analysis', 'Mainframe Systems Knowledge'],
+    tools: ['OTMS', 'BAS (Mainframe)', 'Global Order Service', 'SQL', 'Jira', 'Confluence'],
+    radar:        [90, 90, 72, 88, 85, 78],
+    domain:       [48, 22, 22, 5, 3],
+    instruments:  [82, 72, 60, 62, 52, 0],
+    skillWeights: [0.90, 0.90, 0.72, 0.88, 0.85, 0.78],
+  },
+  {
+    id: 'gap2', name: 'Career Transition',
+    role: 'Between Roles — up-skilling in Data & Cloud',
+    period: 'Mar 2025 – Nov 2025', location: 'Zürich',
+    startY: 2025.25, endY: 2025.9, color: '#445566', isGap: true,
+    contributions: ['Up-skilling: Generative AI, Azure, Databricks, cloud data pipelines'],
+    achievements: [], acquiredSkills: ['Python', 'Azure', 'Databricks', 'SQL'],
+    tools: ['Python', 'Azure', 'Databricks', 'SQL'],
+    radar:        [88, 88, 76, 86, 84, 76],
+    domain:       [20, 50, 5, 20, 5],
+    instruments:  [50, 40, 30, 40, 30, 10],
+    skillWeights: [0, 0, 0, 0, 0, 0],
+  },
+  {
+    id: 'swissre', name: 'Swiss Re',
+    role: 'Data Transformation Analyst (Contractor)',
+    period: 'Dec 2025 – Present', location: 'Zürich',
+    startY: 2025.9, endY: TL_MAX, color: '#c9a84c', isGap: false,
+    contributions: [
+      'Gathered & documented implicit knowledge through interviews with SMEs',
+      'Described data transformations from source to target, including business purpose within the treasury/risk department',
+    ],
+    achievements: [
+      'Identified 60% of non-value-adding flows and proposed actions for optimisation',
+      'Specified use cases for 64 data flows, describing cash movements related to trading activities',
+    ],
+    acquiredSkills: ['Data Lineage Documentation', 'ETL Analysis & Optimisation', 'Source-to-Target Mapping', 'SME Interviewing & Knowledge Capture', 'Process Mining'],
+    tools: ['Informatica PowerCenter', 'Azure Data Factory', 'Oracle SQL', 'Python', 'Databricks', 'Spark'],
+    radar:        [86, 83, 92, 82, 82, 72],
+    domain:       [25, 56, 5, 10, 4],
+    instruments:  [22, 32, 0, 18, 15, 75],
+    skillWeights: [0.86, 0.83, 0.92, 0.82, 0.82, 0.72],
+  },
+];
+
+/* ── Labels & colours ─────────────────────────────────────────────── */
+const radarLabels   = ['Financial\nDomain','Business\nAnalysis','Data\n& SQL','System\nIntegration','Agile\n& PM','Testing\n& QA'];
+const domainLabels  = ['Business Analysis','Data / ETL','Trading & OMS','Product Mgmt','Consulting'];
+const domainColors  = ['#457b9d','#c9a84c','#e07a5f','#2a9d8f','#778899'];
+const instrLabels   = ['Equities','Fixed Income','FX & Rates','Derivatives','Funds & AUM','Insurance\n/ Other'];
+const instrColors   = ['#457b9d','#52b788','#c9a84c','#e07a5f','#7c6fcd','#778899'];
+const skillLabels   = ['Financial Domain','Business Analysis','Data & SQL','Integration','Agile & PM','Testing & QA'];
+const skillColors   = ['#c9a84c','#457b9d','#2a9d8f','#e07a5f','#52b788','#7c6fcd'];
+
+/* ── Helpers ──────────────────────────────────────────────────────── */
+function getEra(year) {
+  let best = eras[0];
+  for (const e of eras) { if (year >= e.startY) best = e; }
+  return best;
+}
+function getCumulativeData(upToYear) {
+  return skillLabels.map((_, i) => {
+    let total = 0;
+    for (const e of eras) {
+      if (e.isGap || e.startY >= upToYear) continue;
+      const yrs = Math.max(0, Math.min(e.endY, upToYear) - e.startY);
+      total += yrs * e.skillWeights[i];
+    }
+    return Math.round(total * 10) / 10;
+  });
+}
+function fmtYear(y) {
+  const yr = Math.floor(y);
+  const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Math.min(Math.round((y - yr) * 12), 11)];
+  return mo + ' ' + yr;
+}
+function lerp(a, b, t) { return a + (b - a) * t; }
+function lerpArr(a, b, t) { return a.map((v, i) => lerp(v, b[i], t)); }
+function easeInOut(t) { return t < .5 ? 2*t*t : -1+(4-2*t)*t; }
+
+/* ── Canvas setup helper ─────────────────────────────────────────── */
+function setupCanvas(id) {
+  const canvas = document.getElementById(id);
+  if (!canvas) {
+    // Element removed from DOM — return inert stub so dependent code doesn't crash
+    const noop = () => {};
+    const fakeCtx = new Proxy({}, { get: () => noop });
+    return { canvas: null, ctx: fakeCtx, dpr: 1,
+             resize: () => ({ W: 0, H: 0 }),
+             getSize: () => ({ W: 0, H: 0 }) };
+  }
+  const ctx    = canvas.getContext('2d');
+  const dpr    = window.devicePixelRatio || 1;
+  function resize() {
+    const box  = canvas.parentElement;
+    const W    = box.clientWidth;
+    const H    = box.clientHeight;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { W, H };
+  }
+  const sz = resize();
+  if (canvas.parentElement) {
+    new ResizeObserver(() => { resize(); redrawAll(); }).observe(canvas.parentElement);
+  }
+  return { canvas, ctx, dpr, resize, getSize() { return { W: canvas.width/dpr, H: canvas.height/dpr }; } };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   1. WORD CLOUD (CSS transitions — Mentimeter style)
+═══════════════════════════════════════════════════════════════════════ */
+// Collect all unique tools across all eras
+const _allToolSet = new Set();
+eras.forEach(e => e.tools.forEach(t => _allToolSet.add(t)));
+const allToolsList = Array.from(_allToolSet);
+
+// Build all word spans once
+(function initWordCloud() {
+  const container = document.getElementById('wordCloud');
+  if (!container) return;
+  // Skill dimension words (always present, sized by radar)
+  radarLabels.forEach((lbl, i) => {
+    const span = document.createElement('span');
+    span.className = 'wc-word';
+    span.dataset.type = 'skill';
+    span.dataset.idx  = i;
+    span.textContent  = lbl.replace('\n', ' ');
+    span.style.fontSize = '0px';
+    span.style.opacity  = '0';
+    container.appendChild(span);
+  });
+  // Tool words (appear/disappear per era)
+  allToolsList.forEach(t => {
+    const span = document.createElement('span');
+    span.className   = 'wc-word';
+    span.dataset.type = 'tool';
+    span.dataset.text = t;
+    span.textContent  = t;
+    span.style.fontSize = '0px';
+    span.style.opacity  = '0';
+    container.appendChild(span);
+  });
+})();
+
+function updateWordCloud(era) {
+  const activeTools = new Set(era.tools);
+  const container   = document.getElementById('wordCloud');
+  if (!container) return;
+
+  Array.from(container.children).forEach(span => {
+    if (span.dataset.type === 'skill') {
+      const i   = parseInt(span.dataset.idx);
+      const val = era.radar[i];
+      const fs  = Math.max(13, Math.round(val * 0.56));
+      span.style.fontSize = fs + 'px';
+      span.style.color    = skillColors[i];
+      span.style.opacity  = '1';
+    } else {
+      // tool
+      const t = span.dataset.text;
+      if (activeTools.has(t)) {
+        // Size based on era's primary radar dimension that matches best
+        const fs = Math.max(11, Math.round(13 + era.radar[2] * 0.12));
+        span.style.fontSize = fs + 'px';
+        span.style.color    = era.color;
+        span.style.opacity  = '0.75';
+      } else {
+        span.style.fontSize = '0px';
+        span.style.opacity  = '0';
+      }
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   2. DOMAIN BUBBLE PACK (Canvas, force-settled positions, lerp radii)
+═══════════════════════════════════════════════════════════════════════ */
+const bubC = setupCanvas('bubbleCanvas');
+
+// Bubble state: positions are fixed per layout slot; radii lerp
+const bubState = domainLabels.map((lbl, i) => ({
+  lbl, color: domainColors[i], curR: 0, tgtR: 0, x: 0, y: 0
+}));
+
+// Fixed layout: pentagon arrangement
+function setBubbleLayout(W, H) {
+  const cx = W / 2, cy = H / 2;
+  const rx = Math.min(W, H) * 0.30;
+  const ry = Math.min(W, H) * 0.26;
+  // 5 positions: top, top-right, bottom-right, bottom-left, top-left
+  const angles = [-Math.PI/2, -Math.PI/2 + 2*Math.PI/5, -Math.PI/2 + 4*Math.PI/5,
+                  -Math.PI/2 + 6*Math.PI/5, -Math.PI/2 + 8*Math.PI/5];
+  bubState.forEach((b, i) => {
+    b.x = cx + Math.cos(angles[i]) * rx;
+    b.y = cy + Math.sin(angles[i]) * ry;
+  });
+}
+
+function setBubbleTargets(domainVals) {
+  const mx = Math.max(...domainVals, 1);
+  const maxR = Math.min(bubC.getSize().W, bubC.getSize().H) * 0.19;
+  bubState.forEach((b, i) => {
+    b.tgtR = Math.max(4, Math.sqrt(domainVals[i] / mx) * maxR);
+  });
+}
+
+function drawBubbles() {
+  const { W, H } = bubC.getSize();
+  const ctx = bubC.ctx;
+  ctx.clearRect(0, 0, W, H);
+
+  bubState.forEach(b => {
+    if (b.curR < 1) return;
+    // Glow shadow
+    ctx.save();
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur  = b.curR * 0.6;
+
+    // Circle fill
+    const grad = ctx.createRadialGradient(b.x - b.curR*0.3, b.y - b.curR*0.3, 0, b.x, b.y, b.curR);
+    grad.addColorStop(0, b.color + 'ee');
+    grad.addColorStop(1, b.color + '44');
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.curR, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    // Text inside
+    const maxFs = b.curR * 0.38;
+    const fs = Math.min(14, Math.max(7, maxFs));
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Percentage
+    ctx.font      = `bold ${Math.max(9, fs * 1.2)}px Segoe UI, system-ui, sans-serif`;
+    ctx.fillStyle = '#fff';
+    ctx.fillText(Math.round(b.tgtR > 4 ? (b.curR / b.tgtR) * 100 * 1 : 0) + '%', b.x, b.y - fs * 0.3);
+
+    // Label (wrap if needed)
+    ctx.font      = `${Math.max(7, fs * 0.8)}px Segoe UI, system-ui, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    const words   = b.lbl.split(' ');
+    if (words.length > 1 && b.curR > 22) {
+      ctx.fillText(words[0], b.x, b.y + fs * 0.7);
+      ctx.fillText(words.slice(1).join(' '), b.x, b.y + fs * 1.7);
+    } else {
+      ctx.fillText(b.lbl, b.x, b.y + fs * 0.9);
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   3. GAUGE RINGS (Canvas, circular arc gauges, 3×2 grid)
+═══════════════════════════════════════════════════════════════════════ */
+const gaugeC = setupCanvas('gaugeCanvas');
+const gaugeState = instrLabels.map((lbl, i) => ({
+  lbl, color: instrColors[i], curVal: 0, tgtVal: 0
+}));
+
+function setGaugeTargets(vals) {
+  gaugeState.forEach((g, i) => { g.tgtVal = vals[i]; });
+}
+
+function drawGauges() {
+  const { W, H } = gaugeC.getSize();
+  const ctx = gaugeC.ctx;
+  ctx.clearRect(0, 0, W, H);
+
+  const cols = 3, rows = 2;
+  const cellW = W / cols, cellH = H / rows;
+  const r = Math.min(cellW, cellH) * 0.34;
+  const startAngle = Math.PI * 0.75;     // 135°
+  const sweepAngle = Math.PI * 1.5;      // 270° sweep
+
+  gaugeState.forEach((g, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    const cx  = cellW * col + cellW / 2;
+    const cy  = cellH * row + cellH * 0.48;
+
+    // Background arc
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, startAngle, startAngle + sweepAngle);
+    ctx.lineWidth   = r * 0.22;
+    ctx.strokeStyle = '#1e3347';
+    ctx.lineCap     = 'round';
+    ctx.stroke();
+
+    // Filled arc
+    const fillEnd = startAngle + sweepAngle * (g.curVal / 100);
+    if (g.curVal > 0) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, startAngle, fillEnd);
+      ctx.lineWidth   = r * 0.22;
+      ctx.strokeStyle = g.color;
+      ctx.lineCap     = 'round';
+      // Glow
+      ctx.shadowColor = g.color;
+      ctx.shadowBlur  = 8;
+      ctx.stroke();
+      ctx.shadowBlur  = 0;
+    }
+
+    // Value text inside
+    const pct = Math.round(g.curVal);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font         = `bold ${r * 0.42}px Segoe UI, system-ui, sans-serif`;
+    ctx.fillStyle    = pct > 0 ? g.color : '#2a3e52';
+    ctx.fillText(pct + '%', cx, cy - r * 0.05);
+
+    // Label below
+    const lblText = g.lbl.replace('\n', ' ');
+    ctx.font      = `${r * 0.25}px Segoe UI, system-ui, sans-serif`;
+    ctx.fillStyle = '#7a92a8';
+    ctx.fillText(lblText, cx, cy + r * 0.82);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   4. CUMULATIVE ORBS (Canvas, growing filled circles, 3×2 grid)
+═══════════════════════════════════════════════════════════════════════ */
+const orbC = setupCanvas('orbCanvas');
+const orbState = skillLabels.map((lbl, i) => ({
+  lbl, color: skillColors[i], curVal: 0, tgtVal: 0
+}));
+
+function setOrbTargets(cumVals) {
+  orbState.forEach((o, i) => { o.tgtVal = cumVals[i]; });
+}
+
+function drawOrbs() {
+  const { W, H } = orbC.getSize();
+  const ctx = orbC.ctx;
+  ctx.clearRect(0, 0, W, H);
+
+  const cols = 3, rows = 2;
+  const cellW = W / cols, cellH = H / rows;
+  const maxVal = Math.max(...orbState.map(o => o.tgtVal), 1);
+  const maxR   = Math.min(cellW, cellH) * 0.34;
+
+  orbState.forEach((o, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    const cx  = cellW * col + cellW / 2;
+    const cy  = cellH * row + cellH * 0.48;
+    const r   = Math.max(4, Math.sqrt(o.curVal / maxVal) * maxR);
+
+    // Outer ring (max size reference)
+    ctx.beginPath();
+    ctx.arc(cx, cy, maxR, 0, Math.PI * 2);
+    ctx.strokeStyle = '#1e3347';
+    ctx.lineWidth   = 1;
+    ctx.stroke();
+
+    // Filled orb
+    const grad = ctx.createRadialGradient(cx - r*0.3, cy - r*0.3, 0, cx, cy, r);
+    grad.addColorStop(0, o.color + 'ff');
+    grad.addColorStop(1, o.color + '55');
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle   = grad;
+    ctx.shadowColor = o.color;
+    ctx.shadowBlur  = r * 0.5;
+    ctx.fill();
+    ctx.shadowBlur  = 0;
+
+    // Value text
+    const fs = Math.max(9, Math.min(16, r * 0.5));
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font         = `bold ${fs}px Segoe UI, system-ui, sans-serif`;
+    ctx.fillStyle    = r > 12 ? '#fff' : 'transparent';
+    ctx.fillText(o.curVal.toFixed(1) + 'y', cx, cy);
+
+    // Label below the outer ring
+    ctx.font      = `${Math.max(8, maxR * 0.22)}px Segoe UI, system-ui, sans-serif`;
+    ctx.fillStyle = '#7a92a8';
+    ctx.fillText(o.lbl, cx, cy + maxR + 12);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ANIMATION ENGINE
+═══════════════════════════════════════════════════════════════════════ */
+let _vizSpeed  = 0.08;
+let _vizRaf    = null;
+let _vizDirty  = false;
+let _activelyEditing = false;
+let _editMode = false;
+
+function _lerpStep() {
+  let dirty = false;
+  const sp = _vizSpeed;
+
+  // Domain bubbles
+  bubState.forEach(b => {
+    const d = b.tgtR - b.curR;
+    if (Math.abs(d) > 0.05) { b.curR += d * sp; dirty = true; }
+    else b.curR = b.tgtR;
+  });
+
+  // Fix percentage display in drawBubbles to use curR / tgtR
+  // (already handled — no change needed here)
+
+  // Gauge arcs
+  gaugeState.forEach(g => {
+    const d = g.tgtVal - g.curVal;
+    if (Math.abs(d) > 0.05) { g.curVal += d * sp; dirty = true; }
+    else g.curVal = g.tgtVal;
+  });
+
+  // Orbs
+  orbState.forEach(o => {
+    const d = o.tgtVal - o.curVal;
+    if (Math.abs(d) > 0.005) { o.curVal += d * sp; dirty = true; }
+    else o.curVal = o.tgtVal;
+  });
+
+  return dirty;
+}
+
+function redrawAll() {
+  drawBubbles();
+  drawGauges();
+  drawOrbs();
+}
+
+function _vizLoop() {
+  const dirty = _lerpStep();
+  redrawAll();
+  if (dirty) _vizRaf = requestAnimationFrame(_vizLoop);
+  else _vizRaf = null;
+}
+
+function startViz(era, year, dragMode) {
+  _vizSpeed = dragMode ? 0.22 : 0.08;
+
+  // Set targets
+  setBubbleTargets(era.domain);
+  setGaugeTargets(era.instruments);
+  setOrbTargets(getCumulativeData(year));
+
+  // Word cloud always updates instantly (CSS transition handles smoothing)
+  updateWordCloud(era);
+
+  if (!_vizRaf) _vizRaf = requestAnimationFrame(_vizLoop);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   EMPLOYER CARD
+═══════════════════════════════════════════════════════════════════════ */
+function renderCard(era) {
+  const card = document.getElementById('empCard');
+  card.style.borderLeftColor = era.color;
+  card.style.setProperty('--era', era.color);
+
+  const de = (field, idx, text, extra='') =>
+    `data-editable ondblclick="inlineEdit(this)" data-era="${era.id}" data-field="${field}" data-idx="${idx}" ${extra}`;
+
+  const tags = era.tools.length
+    ? era.tools.map((t, i) => `<span class="tag" ${de('tools',i,t)} data-bname="${t.replace(/"/g,'&quot;')}" onclick="if(!event.detail||event.detail<2){window.highlightBubble&&window.highlightBubble(this.dataset.bname)}" style="border-color:${era.color}55;color:#ffffff;cursor:pointer">${t}<button class="del-tag no-print" onclick="event.stopPropagation();deleteTag('${era.id}','tools',${i})" title="Remove">&#10005;</button></span>`).join('')
+    : '<span style="color:var(--muted);font-size:12px">—</span>';
+
+  const mkList = (arr, field) => (arr && arr.length)
+    ? arr.map((h, i) => `<li ${de(field,i,h)} style="--era:${era.color}">${h}<button class="del-bullet no-print" onclick="deleteBullet('${era.id}','${field}',${i})" title="Delete">&#10005;</button></li>`).join('')
+    : `<li style="color:var(--muted);list-style:none;font-size:12px;padding-left:0">—</li>`;
+
+  const skillTags = (era.acquiredSkills && era.acquiredSkills.length)
+    ? era.acquiredSkills.map((s, i) => `<span class="tag" ${de('acquiredSkills',i,s)} data-bname="${s.replace(/"/g,'&quot;')}" onclick="if(!event.detail||event.detail<2){window.highlightBubble&&window.highlightBubble(this.dataset.bname)}" style="border-color:${era.color}44;color:#ffffff;font-size:11px;cursor:pointer">${s}<button class="del-tag no-print" onclick="event.stopPropagation();deleteTag('${era.id}','acquiredSkills',${i})" title="Remove">&#10005;</button></span>`).join('')
+    : '<span style="color:var(--muted);font-size:12px">—</span>';
+
+  const editBtn = era.isGap ? '' :
+    `<button class="btn btn-ghost emp-edit-btn no-print" onclick="openEdit('${era.id}')"
+       style="font-size:11px;padding:5px 12px;">&#9998;&nbsp; Edit</button>`;
+
+  card.innerHTML = `
+    <div>
+      <div class="emp-name" ${de('name',-1,era.name)} style="color:${era.color}">${era.name}</div>
+      <div class="emp-role" ${de('role',-1,era.role)}>${era.role}</div>
+      <div class="emp-meta">
+        <span>&#128205;&nbsp;<span ${de('location',-1,era.location)}>${era.location}</span></span>
+        <span>&#128197;&nbsp;<span ${de('period',-1,era.period)}>${era.period}</span></span>
+      </div>
+      ${era.isGap ? '<div class="gap-badge">Career Transition</div>' : ''}
+    </div>
+    <div class="emp-boxes">
+      <div class="emp-boxes-row">
+        <div class="emp-box">
+          <div class="sec-lbl">&#128203;&nbsp; Contributions</div>
+          <ul class="emp-hl">${mkList(era.contributions, 'contributions')}</ul>
+          <button class="add-bullet no-print" onclick="addBullet('${era.id}','contributions')">&#43; add line</button>
+        </div>
+        <div class="emp-box">
+          <div class="sec-lbl">&#127942;&nbsp; Achievements</div>
+          <ul class="emp-hl emp-hl-achiev">${mkList(era.achievements, 'achievements')}</ul>
+          <button class="add-bullet no-print" onclick="addBullet('${era.id}','achievements')">&#43; add line</button>
+        </div>
+      </div>
+      <div class="emp-boxes-row">
+        <div class="emp-box">
+          <div class="sec-lbl">&#128161;&nbsp; Acquired Skills</div>
+          <div class="tags" data-field="acquiredSkills">${skillTags}</div>
+          <button class="add-bullet no-print" onclick="addTag('${era.id}','acquiredSkills')">&#43; add skill</button>
+        </div>
+        <div class="emp-box">
+          <div class="sec-lbl">&#128736;&nbsp; Technologies &amp; Tools</div>
+          <div class="tags" data-field="tools">${tags}</div>
+          <button class="add-bullet no-print" onclick="addTag('${era.id}','tools')">&#43; add tool</button>
+        </div>
+      </div>
+    </div>
+    ${editBtn}
+  `;
+
+  // Drag-to-reorder within each bullet list
+  if (window.Sortable) {
+    card.querySelectorAll('.emp-hl').forEach(ul => {
+      const field = ul.classList.contains('emp-hl-achiev') ? 'achievements' : 'contributions';
+      Sortable.create(ul, {
+        animation: 150,
+        ghostClass: 'sort-ghost',
+        disabled: !_editMode,
+        onStart() { if (!_editMode) return false; },
+        onEnd(evt) {
+          const arr = era[field];
+          const [moved] = arr.splice(evt.oldIndex, 1);
+          arr.splice(evt.newIndex, 0, moved);
+          ul.querySelectorAll('[data-idx]').forEach((li, i) => { li.dataset.idx = i; });
+          saveOverrides();
+        }
+      });
+    });
+
+    // Drag-to-reorder tags (skills & tools)
+    card.querySelectorAll('.tags[data-field]').forEach(container => {
+      const field = container.dataset.field;
+      Sortable.create(container, {
+        animation: 150,
+        ghostClass: 'sort-ghost',
+        disabled: !_editMode,
+        filter: '.del-tag',          // don't start drag when clicking ✕
+        preventOnFilter: false,      // still allow the click to fire deleteTag
+        onStart() { if (!_editMode) return false; },
+        onEnd(evt) {
+          const arr = era[field];
+          const [moved] = arr.splice(evt.oldIndex, 1);
+          arr.splice(evt.newIndex, 0, moved);
+          container.querySelectorAll('[data-idx]').forEach((span, i) => { span.dataset.idx = i; });
+          saveOverrides();
+        }
+      });
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   COMPETENCES PANEL — word-cycle: each word grows from centre outward
+═══════════════════════════════════════════════════════════════════════ */
+(function() {
+  const SKILL_COLOR = '#c9a84c';
+  const TOOL_COLOR  = '#4ab8d8';
+  const SHOW_MS     = 1500;   /* how long each word stays fully visible  */
+  const GROW_MS     = 500;    /* grow-in duration                         */
+  const SHRINK_MS   = 350;    /* shrink-out duration                      */
+  const GAP_MS      = 200;    /* pause between words                      */
+  const CONCUR      = 1;      /* how many words visible at the same time  */
+
+  let _skills = [];   /* acquired skills list */
+  let _tools  = [];   /* technologies & tools list */
+  let _timers = [];   /* active setTimeout IDs */
+  let _skillIdx = 0;  /* next skill index */
+  let _toolIdx  = 0;  /* next tool index */
+  let _showSkill = true; /* alternate flag: true = show skill, false = show tool */
+
+  function buildWords(year) {
+    const era = getEra(year);
+    _skills = (era.acquiredSkills || []).filter(Boolean);
+    _tools  = (era.tools          || []).filter(Boolean);
+  }
+
+  function clearTimers() {
+    _timers.forEach(id => clearTimeout(id));
+    _timers = [];
+  }
+
+  function getContainer() { return document.getElementById('skillBubbleWrap'); }
+
+  function showNextWord() {
+    const wrap = getContainer();
+    if (!wrap) return;
+
+    if (!_skills.length && !_tools.length) return;
+
+    const W = wrap.clientWidth;
+    const H = Math.max(wrap.clientHeight - 38, 40);   /* subtract header */
+    const cx = W / 2, cy = H / 2 + 38;  /* center point (accounting for header) */
+
+    /* alternate between skills and tools */
+    let word;
+    if (_showSkill && _skills.length > 0) {
+      word = { name: _skills[_skillIdx % _skills.length], color: SKILL_COLOR };
+      _skillIdx++;
+      /* switch to tools next if they exist */
+      if (_tools.length > 0) _showSkill = false;
+    } else if (_tools.length > 0) {
+      word = { name: _tools[_toolIdx % _tools.length], color: TOOL_COLOR };
+      _toolIdx++;
+      /* switch back to skills next if they exist */
+      if (_skills.length > 0) _showSkill = true;
+    } else if (_skills.length > 0) {
+      /* fallback: only skills exist */
+      word = { name: _skills[_skillIdx % _skills.length], color: SKILL_COLOR };
+      _skillIdx++;
+    } else {
+      /* no words to show */
+      return;
+    }
+
+    if (!word) return;
+
+    /* create element */
+    const el = document.createElement('span');
+    el.textContent = word.name;
+    Object.assign(el.style, {
+      position:       'absolute',
+      left:            cx + 'px',
+      top:             '38px',  /* start at top (just below header) */
+      transform:       'translate(-50%,-50%) scale(0.05)',
+      opacity:         '0',
+      color:           word.color,
+      fontWeight:      '700',
+      fontSize:        '28px',
+      letterSpacing:   '0.5px',
+      whiteSpace:      'nowrap',
+      pointerEvents:   'none',
+      transition:      `transform ${GROW_MS}ms ease-out, opacity ${GROW_MS}ms ease-out, top ${GROW_MS}ms ease-out`,
+      zIndex:          '2',
+      textShadow:      `0 0 12px ${word.color}88`,
+    });
+    wrap.appendChild(el);
+
+    /* force reflow then animate to center while growing */
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        Object.assign(el.style, {
+          top:       cy + 'px',
+          transform: 'translate(-50%,-50%) scale(1)',
+          opacity:   '1',
+        });
+      });
+    });
+
+    /* after SHOW_MS continue moving down while shrinking */
+    const t1 = setTimeout(() => {
+      const bottomY = H + 38;  /* bottom of panel */
+      Object.assign(el.style, {
+        transition: `transform ${SHRINK_MS}ms ease-in, opacity ${SHRINK_MS}ms ease-in, top ${SHRINK_MS}ms ease-in`,
+        top:        bottomY + 'px',
+        transform:  'translate(-50%,-50%) scale(0.05)',
+        opacity:    '0',
+      });
+      const t2 = setTimeout(() => {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }, SHRINK_MS);
+      _timers.push(t2);
+    }, GROW_MS + SHOW_MS);
+    _timers.push(t1);
+
+    /* schedule the next word after full cycle completes */
+    const delay = GROW_MS + SHOW_MS + SHRINK_MS + GAP_MS;
+    const t3 = setTimeout(showNextWord, delay);
+    _timers.push(t3);
+  }
+
+  function startCycle() {
+    clearTimers();
+    /* remove any leftover word spans */
+    const wrap = getContainer();
+    if (wrap) wrap.querySelectorAll('span').forEach(s => s.remove());
+    _skillIdx = 0;
+    _toolIdx  = 0;
+    _showSkill = true;
+    /* start showing first word immediately */
+    showNextWord();
+  }
+
+  function initBubbles() {
+    const wrap = getContainer();
+    if (!wrap) return;
+    const year = parseFloat(document.getElementById('yearSlider').value) || TL_MAX;
+    buildWords(year);
+    startCycle();
+  }
+
+  let _lastEraId = null;
+  function updateBubbles(year) {
+    const era   = getEra(year);
+    const eraId = era.employer || era.id || era.startY;
+    if (eraId !== _lastEraId) {
+      /* company changed — clear everything and restart with new era's words */
+      _lastEraId = eraId;
+      buildWords(year);
+      startCycle();
+    }
+    /* same company: word list stays, cycle continues uninterrupted */
+  }
+
+  window.initSkillBubbles    = initBubbles;
+  window.updateSkillBubbles  = updateBubbles;
+  window.highlightBubble     = function() {};  /* no-op, kept for tag onclick */
+})();
+
+/* ── Offering panel persistence ── */
+const OFFERING_KEY = 'jt_offering';
+let _offeringItems = [];
+
+function saveOffering() {
+  localStorage.setItem(OFFERING_KEY, JSON.stringify(_offeringItems));
+}
+
+function loadOffering() {
+  const saved = localStorage.getItem(OFFERING_KEY);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        _offeringItems = parsed;
+      } else {
+        // Legacy: if it was HTML string, extract text and convert to single item
+        const temp = document.createElement('div');
+        temp.innerHTML = saved;
+        const text = temp.textContent.trim();
+        if (text && text !== 'Click to write what you offer to your clients…') {
+          _offeringItems = [text];
+        }
+      }
+    } catch (e) {
+      _offeringItems = [];
+    }
+  }
+  if (_offeringItems.length === 0) {
+    _offeringItems = ['Expert consulting and strategic guidance', 'Custom solutions tailored to your needs'];
+  }
+  renderOffering();
+}
+
+function renderOffering() {
+  const list = document.getElementById('offeringList');
+  if (!list) return;
+  
+  if (_offeringItems.length === 0) {
+    list.innerHTML = '<li style="color:var(--muted);list-style:none;font-size:12px;padding-left:0;border:none;background:none">—</li>';
+  } else {
+    list.innerHTML = _offeringItems.map((item, i) => 
+      `<li data-editable ondblclick="inlineEdit(this)" data-scope="offering" data-idx="${i}">${item}<button class="del-bullet no-print" onclick="deleteOfferingItem(${i})" title="Delete">&#10005;</button></li>`
+    ).join('');
+  }
+}
+
+function addOfferingItem() {
+  _offeringItems.push('New offering — double-click to edit');
+  saveOffering();
+  renderOffering();
+  
+  // Auto-edit the new item
+  const list = document.getElementById('offeringList');
+  const lastLi = list.querySelector('li:last-child[data-editable]');
+  if (lastLi) setTimeout(() => inlineEdit(lastLi), 30);
+}
+
+function deleteOfferingItem(idx) {
+  if (!_editMode) return;
+  _offeringItems.splice(idx, 1);
+  saveOffering();
+  renderOffering();
+}
+
+loadOffering();
+
+/* ── Layout size persistence ── */
+const LAYOUT_KEY = 'jt_layout_sizes';
+function saveLayoutSizes() {
+  const wrap = document.getElementById('skillBubbleWrap');
+  const offering = document.getElementById('offeringWrap');
+  const card = document.getElementById('empCard');
+  const sizes = {};
+  
+  if (wrap && !wrap.classList.contains('collapsed')) {
+    sizes.bubbleH = wrap.offsetHeight;
+  }
+  if (wrap) {
+    const bw = wrap.style.getPropertyValue('--bubble-w') || getComputedStyle(wrap).getPropertyValue('--bubble-w');
+    if (bw && bw !== '100%') sizes.bubbleW = bw.trim();
+  }
+  if (offering) {
+    const ow = offering.style.getPropertyValue('--offering-w') || getComputedStyle(offering).getPropertyValue('--offering-w');
+    if (ow) sizes.offeringW = ow.trim();
+    if (offering.style.height) {
+      sizes.offeringH = parseInt(offering.style.height);
+    } else {
+      sizes.offeringH = offering.offsetHeight;
+    }
+  }
+  if (card) {
+    const w = card.style.getPropertyValue('--card-left-w') || getComputedStyle(card).getPropertyValue('--card-left-w');
+    if (w) sizes.cardLeftW = parseInt(w);
+  }
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify(sizes));
+}
+function loadLayoutSizes() {
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY);
+    if (!raw) {
+      /* First load - save current defaults so they persist */
+      setTimeout(() => saveLayoutSizes(), 100);
+      return;
+    }
+    const sizes = JSON.parse(raw);
+    if (sizes.bubbleH) {
+      const wrap = document.getElementById('skillBubbleWrap');
+      if (wrap) wrap.style.height = sizes.bubbleH + 'px';
+    }
+    if (sizes.bubbleW) {
+      const wrap = document.getElementById('skillBubbleWrap');
+      if (wrap) wrap.style.setProperty('--bubble-w', sizes.bubbleW);
+    }
+    if (sizes.offeringW) {
+      const offering = document.getElementById('offeringWrap');
+      if (offering) offering.style.setProperty('--offering-w', sizes.offeringW);
+    }
+    if (sizes.offeringH) {
+      const offering = document.getElementById('offeringWrap');
+      if (offering) offering.style.height = sizes.offeringH + 'px';
+    }
+    if (sizes.cardLeftW) {
+      const card = document.getElementById('empCard');
+      if (card) card.style.setProperty('--card-left-w', sizes.cardLeftW + 'px');
+    }
+  } catch(e) {}
+}
+
+/* ── Bubble panel horizontal resize (left & right edges) ── */
+(function() {
+  function attachEWResize(handleId, side) {
+    const handle = document.getElementById(handleId);
+    if (!handle) return;
+    let dragging = false, startX = 0, startW = 0;
+    handle.addEventListener('mousedown', e => {
+      const wrap = document.getElementById('skillBubbleWrap');
+      dragging = true;
+      startX = e.clientX;
+      startW = wrap.offsetWidth;
+      document.body.style.userSelect = 'none';
+      e.preventDefault(); e.stopPropagation();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const wrap = document.getElementById('skillBubbleWrap');
+      const delta = e.clientX - startX;
+      /* dragging right edge → width grows rightward;
+         dragging left edge → width grows leftward (mirror delta) */
+      const newW = Math.max(300, Math.min(startW + (side === 'right' ? delta : -delta), window.innerWidth));
+      wrap.style.setProperty('--bubble-w', newW + 'px');
+      if (window.initSkillBubbles) window.initSkillBubbles();
+    });
+    document.addEventListener('mouseup', () => {
+      if (dragging) { dragging = false; document.body.style.userSelect = ''; saveLayoutSizes(); }
+    });
+  }
+  attachEWResize('bubbleResizeL', 'left');
+  attachEWResize('bubbleResizeR', 'right');
+})();
+
+/* ── Offering panel resize (right edge & top edge) ── */
+(function() {
+  const handleR = document.getElementById('offeringResizeR');
+  if (handleR) {
+    let dragging = false, startX = 0, startW = 0;
+    handleR.addEventListener('mousedown', e => {
+      const wrap = document.getElementById('offeringWrap');
+      dragging = true;
+      startX = e.clientX;
+      startW = wrap.offsetWidth;
+      document.body.style.userSelect = 'none';
+      e.preventDefault(); e.stopPropagation();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const wrap = document.getElementById('offeringWrap');
+      const delta = e.clientX - startX;
+      const newW = Math.max(220, Math.min(startW + delta, 800));
+      wrap.style.setProperty('--offering-w', newW + 'px');
+    });
+    document.addEventListener('mouseup', () => {
+      if (dragging) { dragging = false; document.body.style.userSelect = ''; saveLayoutSizes(); }
+    });
+  }
+
+  const handleT = document.getElementById('offeringResizeTop');
+  if (handleT) {
+    let dragging = false, startY = 0, startH = 0;
+    handleT.addEventListener('mousedown', e => {
+      const wrap = document.getElementById('offeringWrap');
+      dragging = true;
+      startY = e.clientY;
+      startH = wrap.offsetHeight;
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const wrap = document.getElementById('offeringWrap');
+      const delta = startY - e.clientY;
+      const newH = Math.max(80, Math.min(startH + delta, window.innerHeight * 0.6));
+      wrap.style.height = newH + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (dragging) { dragging = false; document.body.style.userSelect = ''; saveLayoutSizes(); }
+    });
+  }
+})();
+
+/* drag removed */
+
+/* ── Bubble panel vertical resize ── */
+(function() {
+  const handle = document.getElementById('bubbleResizeHandle');
+  if (!handle) return;
+  let dragging = false, startY = 0, startH = 0;
+  handle.addEventListener('mousedown', e => {
+    const wrap = document.getElementById('skillBubbleWrap');
+    if (wrap.classList.contains('collapsed')) return;
+    dragging = true;
+    startY = e.clientY;
+    startH = wrap.offsetHeight;
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const wrap = document.getElementById('skillBubbleWrap');
+    const delta = startY - e.clientY;
+    const newH = Math.max(80, Math.min(startH + delta, window.innerHeight * 0.6));
+    wrap.style.height = newH + 'px';
+    if (window.initSkillBubbles) window.initSkillBubbles();
+  });
+  document.addEventListener('mouseup', () => {
+    if (dragging) { dragging = false; document.body.style.userSelect = ''; saveLayoutSizes(); }
+  });
+})();
+
+/* ── Employer card column resize ── */
+(function() {
+  function attachColResize(card) {
+    if (!card || card.querySelector('.emp-col-divider')) return;
+    const div = document.createElement('div');
+    div.className = 'emp-col-divider no-print';
+    card.style.position = 'relative';
+    card.appendChild(div);
+
+    function reposition() {
+      const w = getComputedStyle(card).getPropertyValue('--card-left-w') || '220px';
+      div.style.left = (parseInt(w) + 14) + 'px'; // 14 = padding-left + gap offset
+    }
+    reposition();
+
+    let dragging = false, startX = 0, startW = 0;
+    div.addEventListener('mousedown', e => {
+      dragging = true;
+      startX = e.clientX;
+      const cur = getComputedStyle(card).getPropertyValue('--card-left-w').trim();
+      startW = parseInt(cur) || 220;
+      document.body.style.userSelect = 'none';
+      e.stopPropagation(); e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const newW = Math.max(120, Math.min(startW + (e.clientX - startX), 500));
+      card.style.setProperty('--card-left-w', newW + 'px');
+      div.style.left = (newW + 14) + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (dragging) { dragging = false; document.body.style.userSelect = ''; saveLayoutSizes(); }
+    });
+  }
+
+  // Attach on initial render and whenever card is re-rendered
+  const obs = new MutationObserver(() => {
+    const card = document.getElementById('empCard');
+    if (card) attachColResize(card);
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+})();
+
+function toggleBubblePanel() { /* no-op: collapse removed */ }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   UPDATE ALL
+═══════════════════════════════════════════════════════════════════════ */
+function updateAll(year, animate) {
+  const era = getEra(year);
+
+  document.documentElement.style.setProperty('--era', era.color);
+  document.getElementById('yearDisplay').textContent = fmtYear(year);
+
+  renderCard(era);
+  startViz(era, year, !animate);
+  if (window.updateSkillBubbles) window.updateSkillBubbles(year);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SLIDER EVENTS
+═══════════════════════════════════════════════════════════════════════ */
+const slider = document.getElementById('yearSlider');
+let rafPending = false;
+
+slider.addEventListener('input', function () {
+  if (_activelyEditing) return;
+  const year = parseFloat(this.value);
+  updateNeedle(year);
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => { updateAll(year, false); rafPending = false; });
+});
+slider.addEventListener('change', function () {
+  const year = parseFloat(this.value);
+  updateNeedle(year);
+  updateAll(year, true);
+});
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BUILD VISUAL TIMELINE
+═══════════════════════════════════════════════════════════════════════ */
+// Timeline is reversed: 2026 on the left, 2004 on the right
+function pct(y) { return ((TL_MAX - y) / TL_SPAN * 100).toFixed(3) + '%'; }
+
+(function buildTimeline() {
+  const track  = document.getElementById('tlTrack');
+  const labels = document.getElementById('tlYearLabels');
+  eras.forEach(era => {
+    const seg = document.createElement('div');
+    seg.className = 'tl-seg' + (era.isGap ? ' gap' : '');
+    seg.style.left       = pct(era.endY);   // reversed: endY is the left edge
+    const segWidthPct = (era.endY - era.startY) / TL_SPAN * 100;
+    seg.style.width      = segWidthPct.toFixed(3) + '%';
+    seg.style.background = era.color;
+    seg.style.opacity    = era.isGap ? '0.25' : '0.85';
+    seg.title            = era.name + '  (' + era.period + ')';
+    if (!era.isGap && segWidthPct < 4) seg.classList.add('tl-seg-narrow');
+    const lbl = document.createElement('span');
+    lbl.className   = 'tl-seg-lbl';
+    lbl.textContent = era.isGap ? '' : era.name;
+    seg.appendChild(lbl);
+    if (!era.isGap) {
+      seg.addEventListener('click', () => {
+        const mid = (era.startY + era.endY) / 2;
+        slider.value = mid;
+        updateAll(mid, true);
+      });
+    }
+    track.appendChild(seg);
+  });
+  for (let y = 2026; y >= 2004; y -= 2) {
+    const s = document.createElement('span');
+    s.textContent = y;
+    s.style.position  = 'absolute';
+    s.style.left      = pct(y);
+    s.style.transform = 'translateX(-50%)';
+    labels.appendChild(s);
+  }
+})();
+
+function updateNeedle(year) {
+  const needle = document.getElementById('tlNeedle');
+  needle.style.left       = pct(year);
+  needle.style.background = getEra(year).color;
+}
+
+// Start in view mode
+document.body.dataset.mode = 'view';
+// Force slider to most recent year regardless of any cached HTML value
+const _sliderEl = document.getElementById('yearSlider');
+_sliderEl.max = TL_MAX;
+_sliderEl.value = TL_MAX;
+if (bubC.canvas && bubC.canvas.parentElement) {
+  const _initSize = bubC.getSize();
+  setBubbleLayout(_initSize.W, _initSize.H);
+}
+updateAll(TL_MAX, false);
+updateNeedle(TL_MAX);
+// Init D3 bubble panel after DOM is ready
+loadLayoutSizes();
+setTimeout(() => { if (window.initSkillBubbles) window.initSkillBubbles(); }, 200);
+
+// Re-run layout on resize
+if (bubC.canvas && bubC.canvas.parentElement) {
+  new ResizeObserver(() => {
+    const s = bubC.getSize();
+    setBubbleLayout(s.W, s.H);
+    redrawAll();
+  }).observe(bubC.canvas.parentElement);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PDF EXPORT
+═══════════════════════════════════════════════════════════════════════ */
+async function exportPDF() {
+  const ov = document.getElementById('overlay');
+  ov.style.display = 'flex';
+  await new Promise(r => setTimeout(r, 80));
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdfW = 297, pdfH = 210;
+    document.body.classList.add('exporting');
+
+    const exportEras = [...eras].filter(e => !e.isGap).reverse(); // most recent first
+
+    // Capture offering panel
+    const offeringWrap = document.createElement('div');
+    offeringWrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:1200px;background:#0d1b2a;z-index:-1;padding:12px 24px;box-sizing:border-box;';
+    offeringWrap.innerHTML = `
+      <div style="background:rgba(13,27,42,0.95);border:1px solid #c9a84c;border-radius:8px;padding:12px 16px;font-family:system-ui,-apple-system,sans-serif;">
+        <div style="font-size:13px;font-weight:600;color:#c9a84c;margin-bottom:10px;letter-spacing:0.5px">◆ Offering</div>
+        <div style="font-size:12.5px;line-height:1.6;color:#e0e5ec">
+          ${_offeringItems.map(item => `<div style="padding:4px 0 4px 12px;margin:0 0 3px 0;border-left:2px solid #c9a84c;background:rgba(201,168,76,0.08);border-radius:4px;position:relative">
+            <span style="position:absolute;left:4px;color:#c9a84c;font-size:8px;opacity:0.7">◆</span>${item}
+          </div>`).join('')}
+        </div>
+      </div>
+    `;
+    document.body.appendChild(offeringWrap);
+    await new Promise(r => setTimeout(r, 30));
+    const offeringCanvas = await html2canvas(offeringWrap, {
+      scale: 2, useCORS: true, backgroundColor: '#0d1b2a', logging: false,
+    });
+    document.body.removeChild(offeringWrap);
+
+    // Capture each card individually into its own canvas
+    const cardCanvases = [];
+    for (const era of exportEras) {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:1200px;background:#0d1b2a;z-index:-1;padding:12px 24px;box-sizing:border-box;border-radius:0;margin:0;';
+      document.body.appendChild(wrap);
+
+      const realCard = document.getElementById('empCard');
+      const savedId  = realCard.id;
+      realCard.id    = '__hidden__';
+      wrap.id        = 'empCard';
+      wrap.className = realCard.className;
+      wrap.style.borderLeftColor = era.color;
+      wrap.style.setProperty('--era', era.color);
+      wrap.style.position = 'relative';
+      renderCard(era);
+      await new Promise(r => setTimeout(r, 60));
+
+      const c = await html2canvas(wrap, {
+        scale: 2, useCORS: true, backgroundColor: '#0d1b2a', logging: false,
+        ignoreElements: el => el.classList.contains('no-print'),
+      });
+      cardCanvases.push(c);
+
+      wrap.id     = '';
+      realCard.id = savedId;
+      document.body.removeChild(wrap);
+    }
+
+    document.body.classList.remove('exporting');
+
+    // Pack cards onto pages without splitting any card
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const DARK = [13, 27, 42]; // #0d1b2a
+
+    function fillPageDark() {
+      pdf.setFillColor(...DARK);
+      pdf.rect(0, 0, pdfW, pdfH, 'F');
+    }
+
+    fillPageDark(); // fill first page
+    let pageY = 0;
+
+    // Add contact header with clickable LinkedIn link (rendered as text, not image)
+    pdf.setFontSize(10);
+    pdf.setTextColor(138, 154, 170); // #8a9aaa
+    
+    // Calculate positions for centered text (no emoji to avoid encoding issues)
+    const linkedInText = 'LinkedIn';
+    const contactText2 = '  |  josephtanios@gmail.com  |  Zurich, Switzerland  |  CFA, PMP, PSPO II';
+    
+    const linkedInWidth = pdf.getTextWidth(linkedInText);
+    const text2Width = pdf.getTextWidth(contactText2);
+    const totalWidth = linkedInWidth + text2Width;
+    
+    let xPos = (pdfW - totalWidth) / 2;
+    const yPos = 8;
+    
+    // Draw LinkedIn as clickable link
+    pdf.setTextColor(201, 168, 76); // #c9a84c (gold)
+    pdf.textWithLink(linkedInText, xPos, yPos, { url: 'https://www.linkedin.com/in/joseph-tanios-95561282/' });
+    xPos += linkedInWidth;
+    
+    // Draw rest of contact info
+    pdf.setTextColor(138, 154, 170); // #8a9aaa
+    pdf.text(contactText2, xPos, yPos);
+    
+    pageY = 12; // Move down after header
+
+    // Add offering panel to first page
+    const offeringScale = pdfW / offeringCanvas.width;
+    const offeringH = offeringCanvas.height * offeringScale;
+    if (pageY + offeringH <= pdfH) {
+      pdf.addImage(offeringCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, pageY, pdfW, offeringH);
+      pageY += offeringH;
+    } else {
+      // Offering doesn't fit, add it on next page
+      pdf.addPage();
+      fillPageDark();
+      pageY = 0;
+      pdf.addImage(offeringCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, pageY, pdfW, offeringH);
+      pageY += offeringH;
+    }
+
+    let firstCard = true;
+    for (const c of cardCanvases) {
+      const scale  = pdfW / c.width;
+      const cardH  = c.height * scale;
+
+      // If card doesn't fit on remaining space, start a new page
+      if (!firstCard && pageY + cardH > pdfH) {
+        pdf.addPage();
+        fillPageDark();
+        pageY = 0;
+      }
+      firstCard = false;
+
+      pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, pageY, pdfW, cardH);
+      pageY += cardH; // no gap — dark bg is seamless
+    }
+
+    updateAll(parseFloat(slider.value), false);
+    pdf.save('Joseph_Tanios_Career_Explorer.pdf');
+  } catch (err) {
+    document.body.classList.remove('exporting');
+    alert('PDF export failed: ' + err.message);
+  } finally {
+    ov.style.display = 'none';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   EDIT PANEL
+═══════════════════════════════════════════════════════════════════════ */
+const STORAGE_KEY = 'jt_career_overrides';
+const DEFAULT_HEADER = {
+  mainTitle: 'Career Explorer v2',
+  subTitle: 'Live Visualisations'
+};
+const headerContent = { ...DEFAULT_HEADER };
+const DEFAULTS    = {};
+eras.forEach(e => { DEFAULTS[e.id] = JSON.parse(JSON.stringify(e)); });
+
+function applyHeaderContent() {
+  const main = document.getElementById('hdrMainTitle');
+  const sub = document.getElementById('hdrSubTitle');
+  if (main) main.textContent = headerContent.mainTitle;
+  if (sub) sub.textContent = headerContent.subTitle;
+}
+
+function loadOverrides() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const overrides = JSON.parse(raw);
+    if (overrides._header) Object.assign(headerContent, overrides._header);
+    eras.forEach(era => { if (overrides[era.id]) Object.assign(era, overrides[era.id]); });
+  } catch(e) {}
+}
+loadOverrides();
+applyHeaderContent();
+
+function saveOverrides() {
+  const overrides = {};
+  const headerPatch = {};
+  ['mainTitle', 'subTitle'].forEach(k => {
+    if (headerContent[k] !== DEFAULT_HEADER[k]) headerPatch[k] = headerContent[k];
+  });
+  if (Object.keys(headerPatch).length) overrides._header = headerPatch;
+  eras.forEach(era => {
+    const def = DEFAULTS[era.id], patch = {};
+    ['name','role','period','location','contributions','achievements','acquiredSkills','tools','radar','domain','instruments'].forEach(k => {
+      if (JSON.stringify(era[k]) !== JSON.stringify(def[k])) patch[k] = era[k];
+    });
+    if (Object.keys(patch).length) overrides[era.id] = patch;
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));
+}
+
+function makeSliders(containerId, labels, values, prefix) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  labels.forEach((lbl, i) => {
+    const row = document.createElement('div');
+    row.className = 'ep-slider-row';
+    row.innerHTML = `<span class="ep-slider-lbl">${lbl}</span>
+      <input class="ep-range" type="range" min="0" max="100" step="1" id="${prefix}-${i}" value="${values[i]}"
+             oninput="document.getElementById('${prefix}-v-${i}').textContent=this.value">
+      <span class="ep-slider-val" id="${prefix}-v-${i}">${values[i]}</span>`;
+    container.appendChild(row);
+  });
+}
+
+function getSliderValues(prefix, count) {
+  return Array.from({length: count}, (_, i) => parseInt(document.getElementById(`${prefix}-${i}`).value, 10));
+}
+
+let _editingId = null, _sessionUnlocked = false;
+
+function resetToSource() {
+  if (!confirm('This will clear all your saved edits and reload data from the source file.\nAre you sure?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  Object.assign(headerContent, DEFAULT_HEADER);
+  applyHeaderContent();
+  // Reload eras from DEFAULTS
+  eras.forEach(era => Object.assign(era, JSON.parse(JSON.stringify(DEFAULTS[era.id]))));
+  updateAll(parseFloat(document.getElementById('yearSlider').value), false);
+}
+
+async function toggleEditMode() {
+  if (!_editMode) {
+    // Entering edit mode requires password
+    if (!_sessionUnlocked) {
+      const ok = await requestPassword();
+      if (!ok) return;
+    }
+    _editMode = true;
+    document.body.dataset.mode = 'edit';
+    document.getElementById('modeBadge').className = 'mode-badge edit';
+    document.getElementById('modeBadge').innerHTML = '&#128995;&nbsp; Edit Mode';
+    document.getElementById('modeToggleBtn').innerHTML = '&#128274;&nbsp; Exit Edit Mode';
+    document.getElementById('spellReviewBtn').style.display = '';
+    document.getElementById('resetSourceBtn').style.display = '';
+  } else {
+    // Exit edit mode
+    _editMode = false;
+    document.body.dataset.mode = 'view';
+    document.getElementById('modeBadge').className = 'mode-badge view';
+    document.getElementById('modeBadge').innerHTML = '&#128274;&nbsp; View Mode';
+    document.getElementById('modeToggleBtn').innerHTML = '&#9998;&nbsp; Enter Edit Mode';
+    document.getElementById('spellReviewBtn').style.display = 'none';
+    document.getElementById('resetSourceBtn').style.display = 'none';
+  }
+}
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+const PW_HASH_KEY = 'jt_edit_pw_hash';
+let _pwResolve = null;
+
+function requestPassword() {
+  return new Promise(resolve => {
+    _pwResolve = resolve;
+    const stored   = localStorage.getItem(PW_HASH_KEY);
+    const isSetup  = !stored;
+    document.getElementById('pwTitle').textContent = isSetup ? 'Set Edit Password' : 'Editor Access';
+    document.getElementById('pwSub').textContent   = isSetup ? 'Choose a password to protect the edit panel' : 'Enter your password to edit career data';
+    document.getElementById('pwBtn').textContent   = isSetup ? 'Set Password' : 'Unlock';
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwConfirm').value = '';
+    document.getElementById('pwErr').textContent = '';
+    document.getElementById('pwConfirm').style.display = isSetup ? 'block' : 'none';
+    document.getElementById('pwHint').textContent = isSetup
+      ? '\uD83D\uDD10 Your password will be stored as a SHA-256 hash only'
+      : '\uD83D\uDD12 Protected by SHA-256 — password never stored in plaintext';
+    document.getElementById('pwBackdrop').classList.add('open');
+    setTimeout(() => document.getElementById('pwInput').focus(), 80);
+  });
+}
+
+function pwNext() {
+  const confirm = document.getElementById('pwConfirm');
+  if (confirm.style.display !== 'none') confirm.focus();
+  else pwSubmit();
+}
+
+async function pwSubmit() {
+  const stored  = localStorage.getItem(PW_HASH_KEY);
+  const isSetup = !stored;
+  const pw      = document.getElementById('pwInput').value;
+  const errEl   = document.getElementById('pwErr');
+  if (!pw) { errEl.textContent = 'Please enter a password.'; return; }
+  if (isSetup) {
+    const pw2 = document.getElementById('pwConfirm').value;
+    if (pw !== pw2) { errEl.textContent = 'Passwords do not match.'; shake(); return; }
+    if (pw.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+    localStorage.setItem(PW_HASH_KEY, await sha256(pw));
+    _sessionUnlocked = true; closePwModal();
+    if (_pwResolve) { _pwResolve(true); _pwResolve = null; }
+  } else {
+    const hash = await sha256(pw);
+    if (hash === stored) {
+      _sessionUnlocked = true; closePwModal();
+      if (_pwResolve) { _pwResolve(true); _pwResolve = null; }
+    } else {
+      errEl.textContent = 'Incorrect password.'; shake();
+      document.getElementById('pwInput').value = '';
+      document.getElementById('pwInput').focus();
+    }
+  }
+}
+
+function pwCancel() { closePwModal(); if (_pwResolve) { _pwResolve(false); _pwResolve = null; } }
+function closePwModal() { document.getElementById('pwBackdrop').classList.remove('open'); }
+function shake() {
+  const box = document.getElementById('pwBox');
+  box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+}
+
+/* ── Dynamic list helpers for edit panel ── */
+function epAddItemRow(container, value, isTextarea) {
+  const row = document.createElement('div');
+  row.className = 'ep-dyn-row';
+  const input = document.createElement(isTextarea ? 'textarea' : 'input');
+  if (isTextarea) { input.rows = 2; } else { input.type = 'text'; }
+  input.className = 'ep-dyn-input';
+  input.value = value;
+  const del = document.createElement('button');
+  del.className = 'ep-del-btn';
+  del.textContent = '×';
+  del.title = 'Delete';
+  del.onclick = () => row.remove();
+  row.appendChild(input);
+  row.appendChild(del);
+  container.appendChild(row);
+}
+function epBuildList(containerId, items, isTextarea) {
+  const c = document.getElementById(containerId);
+  c.innerHTML = '';
+  (items.length ? items : ['']).forEach(v => epAddItemRow(c, v, isTextarea));
+}
+function epAddItem(section) {
+  const map = { contributions: ['ef-contributions-list', true], achievements: ['ef-achievements-list', true], skills: ['ef-skills-list', false] };
+  const [id, isTextarea] = map[section];
+  epAddItemRow(document.getElementById(id), '', isTextarea);
+}
+
+async function openEdit(eraId) {
+  if (!_sessionUnlocked) { const ok = await requestPassword(); if (!ok) return; }
+  if (!_editMode) return; // must be in edit mode to open panel
+  _editingId = eraId;
+  const era = eras.find(e => e.id === eraId);
+  if (!era) return;
+  document.getElementById('epTitle').textContent   = era.name;
+  document.getElementById('ef-name').value         = era.name;
+  document.getElementById('ef-role').value         = era.role;
+  document.getElementById('ef-period').value       = era.period;
+  document.getElementById('ef-location').value     = era.location;
+  epBuildList('ef-contributions-list', era.contributions || [], true);
+  epBuildList('ef-achievements-list',  era.achievements  || [], true);
+  epBuildList('ef-skills-list',        era.acquiredSkills|| [], false);
+  document.getElementById('ef-tools').value = (era.tools||[]).join(', ');
+  document.getElementById('editPanel').classList.add('open');
+  document.getElementById('editBackdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeEdit() {
+  document.getElementById('editPanel').classList.remove('open');
+  document.getElementById('editBackdrop').classList.remove('open');
+  document.body.style.overflow = '';
+  _editingId = null;
+}
+
+function saveEra() {
+  if (!_editingId) return;
+  const era = eras.find(e => e.id === _editingId);
+  if (!era) return;
+  era.name     = document.getElementById('ef-name').value.trim()     || era.name;
+  era.role     = document.getElementById('ef-role').value.trim()     || era.role;
+  era.period   = document.getElementById('ef-period').value.trim()   || era.period;
+  era.location = document.getElementById('ef-location').value.trim() || era.location;
+  era.contributions = [...document.querySelectorAll('#ef-contributions-list .ep-dyn-input')].map(el=>el.value.trim()).filter(Boolean);
+  era.achievements  = [...document.querySelectorAll('#ef-achievements-list .ep-dyn-input')].map(el=>el.value.trim()).filter(Boolean);
+  era.acquiredSkills= [...document.querySelectorAll('#ef-skills-list .ep-dyn-input')].map(el=>el.value.trim()).filter(Boolean);
+  era.tools         = document.getElementById('ef-tools').value.split(',').map(t=>t.trim()).filter(Boolean);
+  saveOverrides(); closeEdit();
+  const yr = parseFloat(document.getElementById('yearSlider').value);
+  updateAll(yr, true);
+  const card = document.getElementById('empCard');
+  card.style.outline = '2px solid var(--gold)';
+  setTimeout(() => { card.style.outline = ''; }, 800);
+}
+
+function resetEra() {
+  if (!_editingId) return;
+  if (!confirm('Reset "' + _editingId + '" to original data?')) return;
+  const idx = eras.findIndex(e => e.id === _editingId);
+  if (idx === -1) return;
+  Object.assign(eras[idx], JSON.parse(JSON.stringify(DEFAULTS[_editingId])));
+  saveOverrides(); closeEdit();
+  updateAll(parseFloat(document.getElementById('yearSlider').value), true);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+function openSpellReview() {
+  if (!_editMode) return;
+  const body = document.getElementById('srBody');
+  body.innerHTML = '';
+
+  eras.filter(e => !e.isGap).forEach(era => {
+    const block = document.createElement('div');
+    block.className = 'sr-era';
+    block.dataset.eraId = era.id;
+
+    const heading = document.createElement('div');
+    heading.className = 'sr-era-name';
+    heading.textContent = era.name + ' — ' + era.role;
+    block.appendChild(heading);
+
+    const addField = (label, field, arr) => {
+      if (!arr || !arr.length) return;
+      const lbl = document.createElement('div');
+      lbl.className = 'sr-field-lbl';
+      lbl.textContent = label;
+      block.appendChild(lbl);
+      arr.forEach((text, i) => {
+        const div = document.createElement('div');
+        div.className = 'sr-item';
+        div.contentEditable = 'true';
+        div.spellcheck = true;
+        div.dataset.field = field;
+        div.dataset.idx   = i;
+        div.textContent   = text;
+        block.appendChild(div);
+      });
+    };
+
+    addField('Contributions',    'contributions',  era.contributions);
+    addField('Achievements',     'achievements',   era.achievements);
+    addField('Acquired Skills',  'acquiredSkills', era.acquiredSkills);
+    addField('Tools',            'tools',          era.tools);
+
+    body.appendChild(block);
+  });
+
+  document.getElementById('srBackdrop').classList.add('open');
+}
+
+function saveSpellReview() {
+  const body = document.getElementById('srBody');
+  body.querySelectorAll('.sr-era').forEach(block => {
+    const era = eras.find(e => e.id === block.dataset.eraId);
+    if (!era) return;
+    // Rebuild each field's array from DOM order; clearing an item removes it (handles duplicates)
+    const fieldMap = {};
+    block.querySelectorAll('.sr-item').forEach(div => {
+      const field = div.dataset.field;
+      if (!fieldMap[field]) fieldMap[field] = [];
+      const text = div.textContent.trim();
+      if (text) fieldMap[field].push(text);
+    });
+    Object.entries(fieldMap).forEach(([field, arr]) => { era[field] = arr; });
+  });
+  saveOverrides();
+  closeSpellReview();
+  updateAll(parseFloat(document.getElementById('yearSlider').value), false);
+}
+
+function closeSpellReview() {
+  document.getElementById('srBackdrop').classList.remove('open');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   INLINE DOUBLE-CLICK EDITING
+═══════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════
+   ADD NEW BULLET
+═══════════════════════════════════════════════════════════════════════ */
+function deleteTag(eraId, field, idx) {
+  if (!_editMode) return;
+  const era = eras.find(e => e.id === eraId);
+  if (!era) return;
+  era[field].splice(idx, 1);
+  saveOverrides();
+  updateAll(parseFloat(document.getElementById('yearSlider').value), false);
+}
+
+function addTag(eraId, field) {
+  if (!_editMode) return;
+  const era = eras.find(e => e.id === eraId);
+  if (!era) return;
+  era[field].push('New tag');
+  saveOverrides();
+  const yr = parseFloat(document.getElementById('yearSlider').value);
+  updateAll(yr, false);
+  // Find the last tag span and open it for editing
+  const card = document.getElementById('empCard');
+  const allTags = card.querySelectorAll(`.tag[data-field="${field}"]`);
+  const lastTag = allTags[allTags.length - 1];
+  if (lastTag) setTimeout(() => inlineEdit(lastTag), 30);
+}
+
+function deleteBullet(eraId, field, idx) {
+  if (!_editMode) return;
+  const era = eras.find(e => e.id === eraId);
+  if (!era) return;
+  era[field].splice(idx, 1);
+  saveOverrides();
+  updateAll(parseFloat(document.getElementById('yearSlider').value), false);
+}
+
+function addBullet(eraId, field) {
+  const era = eras.find(e => e.id === eraId);
+  if (!era) return;
+  era[field].push('New item — double-click to edit');
+  saveOverrides();
+  // Re-render card and immediately trigger edit on the new item
+  const yr = parseFloat(document.getElementById('yearSlider').value);
+  updateAll(yr, false);
+  // Find the last li in the matching list and open it for editing
+  const card = document.getElementById('empCard');
+  const lists = card.querySelectorAll('.emp-hl');
+  lists.forEach(ul => {
+    const isAchiev = ul.classList.contains('emp-hl-achiev');
+    if ((field === 'achievements') === isAchiev) {
+      const lastLi = ul.querySelector('li:last-child[data-editable]');
+      if (lastLi) { setTimeout(() => inlineEdit(lastLi), 30); }
+    }
+  });
+}
+
+function inlineEdit(el) {
+  if (!_editMode) return;   // read mode — no editing
+  if (el.contentEditable === 'true') return;
+
+  // Read text from text-nodes only — avoids capturing child button text (del-bullet ✕)
+  const getElText = () =>
+    Array.from(el.childNodes)
+      .filter(n => n.nodeType === Node.TEXT_NODE)
+      .map(n => n.textContent)
+      .join('').trim();
+
+  const origText = getElText();
+  el.contentEditable = 'true';
+  el.spellcheck = true;
+  _activelyEditing = true;
+  el.focus();
+
+  // Select only the first text node so child buttons are not selected/deleted
+  const textNode = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
+  const range = document.createRange();
+  range.selectNodeContents(textNode || el);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  function restoreTextNode(text) {
+    const tn = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
+    if (tn) tn.textContent = text;
+    else el.insertBefore(document.createTextNode(text), el.firstChild);
+  }
+
+  function commit() {
+    el.contentEditable = 'false';
+    el.spellcheck = false;
+    _activelyEditing = false;
+    el.removeEventListener('keydown', onKey);
+    const scope = el.dataset.scope;
+    const eId   = el.dataset.era;
+    const field = el.dataset.field;
+    const idx   = parseInt(el.dataset.idx);
+    const era   = eras.find(e => e.id === eId);
+    const newText = getElText();
+    if (scope === 'header' && field) {
+      if (newText) {
+        headerContent[field] = newText;
+        applyHeaderContent();
+        saveOverrides();
+      } else {
+        restoreTextNode(origText);
+      }
+      return;
+    }
+    if (scope === 'offering') {
+      if (newText) {
+        _offeringItems[idx] = newText;
+        saveOffering();
+      } else {
+        restoreTextNode(origText);
+      }
+      return;
+    }
+    if (era && field) {
+      if (newText) {
+        if (idx === -1) {
+          // string field (name, role, location, period)
+          era[field] = newText;
+        } else {
+          // array field (contributions, achievements, acquiredSkills, tools)
+          era[field][idx] = newText;
+        }
+        saveOverrides();
+      } else {
+        restoreTextNode(origText);
+      }
+    }
+  }
+  function onKey(ev) {
+    if (ev.key === 'Enter')  { ev.preventDefault(); el.blur(); }
+    if (ev.key === 'Escape') { restoreTextNode(origText); el.blur(); }
+  }
+  el.addEventListener('blur',    commit, { once: true });
+  el.addEventListener('keydown', onKey);
+}
+
+document.addEventListener('dblclick', function(e) {
+  // fallback for any remaining [data-editable] elements
+  const el = e.target.closest('[data-editable]');
+  if (!el || el.tagName === 'LI') return; // LI handled by ondblclick directly
+  if (el.contentEditable === 'true') return;
+  inlineEdit(el);
+});
+</script>
+
+<!-- BOTTOM CONTACT BAR -->
+<div style="text-align:center;padding:8px 36px;color:#ffffff;font-size:11px;border-top:1px solid var(--border)">
+  <a href="https://www.linkedin.com/in/joseph-tanios-95561282/" target="_blank" rel="noopener noreferrer" style="color:#ffffff;text-decoration:none;font-weight:600;">&#128101;&nbsp;LinkedIn</a>
+  &nbsp;&middot;&nbsp; josephtanios@gmail.com &nbsp;&middot;&nbsp;
+  Z&uuml;rich, Switzerland &nbsp;&middot;&nbsp; CFA &middot; PMP &middot; PSPO II
+</div>
+
+</body>
+</html>
